@@ -1,14 +1,33 @@
 import { useRef, useState, useEffect } from "react";
 import { motion, useMotionValue, useSpring, useTransform, AnimatePresence } from "motion/react";
-import { CheckCircle2, Cpu, FileText, ShieldCheck, Sparkles, UploadCloud } from "lucide-react";
+import {
+  CheckCircle2,
+  Cpu,
+  FileText,
+  RefreshCw,
+  ShieldCheck,
+  Sparkles,
+  UploadCloud,
+} from "lucide-react";
+import { toast } from "sonner";
 
 type IngestState = "idle" | "dragging" | "scanning" | "staged";
 
-export function IngestionZone({ onIngest }: { onIngest: () => void }) {
+export interface UploadedFileMeta {
+  name: string;
+  sizeFormatted: string;
+  type: string;
+  rawFile: File;
+}
+
+export function IngestionZone({ onIngest }: { onIngest: (file: File) => void }) {
   const ref = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   const [state, setState] = useState<IngestState>("idle");
   const [scanProgress, setScanProgress] = useState(0);
   const [isHovered, setIsHovered] = useState(false);
+  const [currentFile, setCurrentFile] = useState<UploadedFileMeta | null>(null);
 
   const mx = useMotionValue(0);
   const my = useMotionValue(0);
@@ -28,31 +47,94 @@ export function IngestionZone({ onIngest }: { onIngest: () => void }) {
     setIsHovered(false);
   };
 
-  const triggerIngestSequence = () => {
-    if (state === "scanning") return;
+  const formatFileSize = (bytes: number): string => {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  };
+
+  const validateAndProcessFile = (file: File) => {
+    const allowedTypes = ["application/pdf", "image/png", "image/jpeg", "image/jpg"];
+    const isAllowedExt = /\.(pdf|png|jpe?g)$/i.test(file.name);
+
+    if (!allowedTypes.includes(file.type) && !isAllowedExt) {
+      toast.error("Invalid file format", {
+        description: "Please upload a valid PDF, PNG, or JPEG medical document.",
+      });
+      setState("idle");
+      return;
+    }
+
+    const maxSizeBytes = 25 * 1024 * 1024; // 25MB
+    if (file.size > maxSizeBytes) {
+      toast.error("File size limit exceeded", {
+        description: `Selected file is ${formatFileSize(file.size)}. Maximum size is 25MB.`,
+      });
+      setState("idle");
+      return;
+    }
+
+    const meta: UploadedFileMeta = {
+      name: file.name,
+      sizeFormatted: formatFileSize(file.size),
+      type: file.type || "Document",
+      rawFile: file,
+    };
+
+    setCurrentFile(meta);
     setState("scanning");
     setScanProgress(0);
+    toast.success("File staged for audit", {
+      description: `${file.name} (${meta.sizeFormatted}) ready for parsing.`,
+    });
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      validateAndProcessFile(file);
+    }
+  };
+
+  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    const file = e.dataTransfer.files?.[0];
+    if (file) {
+      validateAndProcessFile(file);
+    } else {
+      setState("idle");
+    }
+  };
+
+  const openFilePicker = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+      fileInputRef.current.click();
+    }
   };
 
   useEffect(() => {
-    if (state !== "scanning") return;
+    if (state !== "scanning" || !currentFile) return;
     const interval = setInterval(() => {
       setScanProgress((prev) => {
         if (prev >= 100) {
           clearInterval(interval);
           setTimeout(() => {
             setState("staged");
-            onIngest();
-            setTimeout(() => setState("idle"), 2500);
+            onIngest(currentFile.rawFile);
+            setTimeout(() => {
+              setState("idle");
+            }, 3000);
           }, 300);
           return 100;
         }
         return prev + 10;
       });
-    }, 120);
+    }, 100);
 
     return () => clearInterval(interval);
-  }, [state, onIngest]);
+  }, [state, currentFile, onIngest]);
 
   return (
     <motion.div
@@ -70,10 +152,7 @@ export function IngestionZone({ onIngest }: { onIngest: () => void }) {
       onDragLeave={() => {
         if (state === "dragging") setState("idle");
       }}
-      onDrop={(e) => {
-        e.preventDefault();
-        triggerIngestSequence();
-      }}
+      onDrop={handleDrop}
       className={`relative overflow-hidden rounded-2xl border bg-card/60 p-8 backdrop-blur-2xl transition-all duration-300 sm:p-10 ${
         state === "dragging"
           ? "border-cyan shadow-glow-cyan bg-cyan/10"
@@ -85,6 +164,15 @@ export function IngestionZone({ onIngest }: { onIngest: () => void }) {
       }`}
       style={{ perspective: 1200 }}
     >
+      {/* Hidden Native File Input */}
+      <input
+        type="file"
+        ref={fileInputRef}
+        accept="application/pdf,image/png,image/jpeg,image/jpg"
+        className="hidden"
+        onChange={handleFileChange}
+      />
+
       {/* Background Micro Grid */}
       <div className="pointer-events-none absolute inset-0 opacity-40 micro-grid" />
       <div className="pointer-events-none absolute -top-24 -left-24 size-72 rounded-full bg-cyan/15 blur-3xl" />
@@ -95,32 +183,43 @@ export function IngestionZone({ onIngest }: { onIngest: () => void }) {
         <motion.div
           style={{ rotateX: rx, rotateY: ry, transformStyle: "preserve-3d" }}
           className="relative cursor-pointer"
-          onClick={triggerIngestSequence}
+          onClick={openFilePicker}
         >
           <div className="relative h-60 w-44 rounded-2xl border border-white/15 bg-gradient-to-b from-white/12 via-white/5 to-transparent p-5 shadow-panel backdrop-blur-xl transition-shadow sm:h-64 sm:w-48 group-hover:shadow-glow-cyan">
             {/* Header */}
             <div className="flex items-center justify-between border-b border-border/80 pb-3">
-              <div className="flex items-center gap-2">
-                <FileText className="size-4 text-cyan" />
-                <span className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
-                  837P / EOB
+              <div className="flex items-center gap-2 min-w-0">
+                <FileText className="size-4 shrink-0 text-cyan" />
+                <span className="truncate font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
+                  {currentFile ? currentFile.name.split(".").pop() : "837P / EOB"}
                 </span>
               </div>
-              <span className="rounded bg-cyan/15 px-1.5 py-0.5 font-mono text-[9px] text-cyan">
+              <span className="shrink-0 rounded bg-cyan/15 px-1.5 py-0.5 font-mono text-[9px] text-cyan">
                 v30.1
               </span>
             </div>
 
-            {/* Document Lines */}
-            <div className="mt-5 space-y-3">
-              {[88, 64, 76, 52, 82, 45].map((w, i) => (
-                <div
-                  key={i}
-                  className="h-1.5 rounded-full bg-white/15"
-                  style={{ width: `${w}%` }}
-                />
-              ))}
-            </div>
+            {/* Real Filename Display */}
+            {currentFile ? (
+              <div className="mt-4 rounded-xl border border-cyan/30 bg-cyan/10 p-2.5">
+                <p className="truncate font-mono text-xs font-semibold text-cyan">
+                  {currentFile.name}
+                </p>
+                <p className="mt-1 font-mono text-[10px] text-muted-foreground">
+                  {currentFile.sizeFormatted}
+                </p>
+              </div>
+            ) : (
+              <div className="mt-5 space-y-3">
+                {[88, 64, 76, 52, 82, 45].map((w, i) => (
+                  <div
+                    key={i}
+                    className="h-1.5 rounded-full bg-white/15"
+                    style={{ width: `${w}%` }}
+                  />
+                ))}
+              </div>
+            )}
 
             {/* Flagged Item Highlight */}
             <div className="mt-4 rounded-lg border border-danger/40 bg-danger/10 p-2 text-[10px] font-mono flex items-center justify-between">
@@ -130,7 +229,7 @@ export function IngestionZone({ onIngest }: { onIngest: () => void }) {
 
             {/* Document Footer */}
             <div className="absolute inset-x-5 bottom-4 flex items-center justify-between font-mono text-[9px] text-muted-foreground">
-              <span>NPI 1092837</span>
+              <span>{currentFile ? "FILE LOADED" : "NPI 1092837"}</span>
               <span className="text-emerald">VERIFIED</span>
             </div>
 
@@ -170,19 +269,25 @@ export function IngestionZone({ onIngest }: { onIngest: () => void }) {
                 exit={{ opacity: 0, y: -6 }}
               >
                 <h2 className="text-pretty text-xl font-semibold tracking-tight sm:text-2xl">
-                  <span className="text-gradient-cyan">Drop claims to begin audit</span>
+                  <span className="text-gradient-cyan">
+                    {currentFile ? "Ready for next claim" : "Drop claims to begin audit"}
+                  </span>
                 </h2>
                 <p className="mt-2 text-sm text-muted-foreground leading-relaxed">
-                  Drag & drop medical invoices, EOBs or 837P files. The agent parses CPT codes and
-                  cross-checks CMS NCCI rules line by line.
+                  {currentFile
+                    ? `Last uploaded: ${currentFile.name} (${currentFile.sizeFormatted}). Drop another file or click below to select.`
+                    : "Drag & drop medical invoices, EOBs or 837P files (PDF, PNG, JPEG up to 25MB). Agent parses CPT codes line by line."}
                 </p>
-                <button
-                  onClick={triggerIngestSequence}
-                  className="mt-6 inline-flex items-center gap-2 rounded-xl border border-cyan/40 bg-cyan-soft px-5 py-2.5 text-sm font-semibold text-foreground shadow-glow-cyan transition-all hover:scale-105"
-                >
-                  <UploadCloud className="size-4 text-cyan" />
-                  Select & Ingest Files
-                </button>
+
+                <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
+                  <button
+                    onClick={openFilePicker}
+                    className="inline-flex items-center gap-2 rounded-xl border border-cyan/40 bg-cyan-soft px-5 py-2.5 text-sm font-semibold text-foreground shadow-glow-cyan transition-all hover:scale-105"
+                  >
+                    <UploadCloud className="size-4 text-cyan" />
+                    {currentFile ? "Choose Another File" : "Select & Ingest Files"}
+                  </button>
+                </div>
               </motion.div>
             )}
 
@@ -196,12 +301,12 @@ export function IngestionZone({ onIngest }: { onIngest: () => void }) {
               >
                 <h2 className="text-xl font-semibold text-cyan">Release file to scan</h2>
                 <p className="text-sm text-cyan/80 font-mono">
-                  Agent ready to begin OCR breakdown...
+                  Agent ready to extract metadata & parse CPT codes...
                 </p>
               </motion.div>
             )}
 
-            {state === "scanning" && (
+            {state === "scanning" && currentFile && (
               <motion.div
                 key="scanning"
                 initial={{ opacity: 0, y: 6 }}
@@ -235,19 +340,22 @@ export function IngestionZone({ onIngest }: { onIngest: () => void }) {
                 </div>
 
                 <h2 className="mt-3 text-lg font-semibold text-foreground">
-                  Scanning & Extracting
+                  Scanning {currentFile.name}
                 </h2>
-                <p className="mt-1 font-mono text-xs text-muted-foreground animate-pulse">
+                <p className="mt-0.5 font-mono text-xs text-muted-foreground">
+                  {currentFile.sizeFormatted} · {currentFile.type || "Document"}
+                </p>
+                <p className="mt-2 font-mono text-xs text-cyan animate-pulse">
                   {scanProgress < 40
-                    ? "Parsing EOB document structure..."
+                    ? "Parsing PDF/Image document structure..."
                     : scanProgress < 80
-                      ? "Extracting CPT codes & Modifier 59..."
+                      ? "Extracting CPT codes & NPI headers..."
                       : "Cross-referencing CMS NCCI rulebook..."}
                 </p>
               </motion.div>
             )}
 
-            {state === "staged" && (
+            {state === "staged" && currentFile && (
               <motion.div
                 key="staged"
                 initial={{ opacity: 0, scale: 0.9 }}
@@ -258,10 +366,19 @@ export function IngestionZone({ onIngest }: { onIngest: () => void }) {
                 <div className="grid size-12 place-items-center rounded-full bg-emerald/20 border border-emerald/40 text-emerald shadow-glow-emerald">
                   <CheckCircle2 className="size-6" />
                 </div>
-                <h2 className="mt-3 text-lg font-semibold text-emerald">Document Ingested</h2>
+                <h2 className="mt-3 text-lg font-semibold text-emerald">
+                  {currentFile.name} Ingested
+                </h2>
                 <p className="mt-1 font-mono text-xs text-muted-foreground">
-                  Handed to audit queue — checking upcoding violations.
+                  Staged to Live Feed table — checking upcoding violations.
                 </p>
+                <button
+                  onClick={openFilePicker}
+                  className="mt-4 inline-flex items-center gap-1.5 rounded-lg border border-border bg-surface px-3 py-1.5 text-xs font-mono text-foreground hover:bg-white/5 transition-colors"
+                >
+                  <RefreshCw className="size-3.5 text-cyan" />
+                  Choose another file
+                </button>
               </motion.div>
             )}
           </AnimatePresence>

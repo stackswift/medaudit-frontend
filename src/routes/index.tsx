@@ -38,25 +38,62 @@ function Index() {
     .filter((c) => c.status === "Clean")
     .reduce((acc, c) => acc + c.savings, 7567);
 
-  const handleIngest = () => {
-    const id = `CLM-${88300 + claims.length}`;
-    setClaims((prev) => [
-      {
-        id,
-        provider: "Mercy General Hospital",
-        facility: "Emergency Trauma",
-        date: "Sep 3, 2026",
-        savings: 1450,
-        status: "Cross-Referencing",
-        npi: "1892837461",
-        taxId: "42-1029384",
-        patientId: `PT-${Math.floor(1000000 + Math.random() * 9000000)}`,
-        issueTitle: "Upcoding / Level 5 Emergency",
-        recommendedCode: "CPT 99283 · $610.00",
-      },
-      ...prev,
-    ]);
-    toast.success("Document Ingested", { description: `${id} extracted and handed to AgentCore.` });
+  const handleIngest = (file: File) => {
+    const claimId = `CLM-${Math.floor(10000 + Math.random() * 90000)}`;
+    const cleanProviderName = file.name
+      .replace(/\.[^/.]+$/, "")
+      .replace(/[-_]/g, " ")
+      .replace(/\b\w/g, (l) => l.toUpperCase());
+
+    const todayDate = new Date().toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    });
+
+    const newClaim: Claim = {
+      id: claimId,
+      provider: cleanProviderName || "Uploaded Medical Document",
+      facility: file.type.includes("pdf") ? "PDF Statement Ingestion" : "OCR Image Scan",
+      date: todayDate,
+      savings: 0,
+      status: "Parsing",
+      npi: "1092837482",
+      taxId: "94-2849102",
+      patientId: `PT-${Math.floor(1000000 + Math.random() * 9000000)}`,
+    };
+
+    setClaims((prev) => [newClaim, ...prev]);
+    toast.success("Audit initialized", {
+      description: `${claimId} (${file.name}) prepended to Live Feed.`,
+    });
+
+    // Pipeline Step 1: Transition Parsing -> Cross-Referencing after 1.5s
+    setTimeout(() => {
+      setClaims((prev) =>
+        prev.map((c) => (c.id === claimId ? { ...c, status: "Cross-Referencing" as const } : c)),
+      );
+
+      // Pipeline Step 2: Transition Cross-Referencing -> Action Required with audit breakdown after another 1.5s
+      setTimeout(() => {
+        setClaims((prev) =>
+          prev.map((c) =>
+            c.id === claimId
+              ? {
+                  ...c,
+                  status: "Action Required" as const,
+                  savings: 1840,
+                  issueTitle: "Upcoding / Level 5 Emergency",
+                  recommendedCode: "CPT 99283 · $610.00",
+                }
+              : c,
+          ),
+        );
+        toast.info("Audit Action Required", {
+          description: `${claimId} — Upcoding violation detected. Click row to open Dispute Desk.`,
+        });
+      }, 1600);
+    }, 1400);
   };
 
   const handleAuthorize = () => {

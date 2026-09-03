@@ -7,6 +7,7 @@ import {
   ChevronDown,
   FileCheck,
   Gavel,
+  Info,
   Scale,
   ScrollText,
   ShieldAlert,
@@ -24,30 +25,6 @@ interface StepItem {
   detail: string;
   citation: string;
 }
-
-const reasoningSteps: StepItem[] = [
-  {
-    number: 1,
-    title: "Documentation Deficit Analysis",
-    detail:
-      "Encounter documentation supports moderate complexity Medical Decision Making (MDM), not high severity with immediate threat to life or organ function.",
-    citation: "CMS Evaluation & Management Guidelines (2026)",
-  },
-  {
-    number: 2,
-    title: "Critical Care & Vitals Validation",
-    detail:
-      "Zero critical care physician time recorded. Patient vital signs remained within baseline thresholds throughout the entire emergency department encounter.",
-    citation: "CPT 99291 / 99285 MDM Criteria",
-  },
-  {
-    number: 3,
-    title: "NCCI Modifier 59 Unbundling Breach",
-    detail:
-      "Modifier 59 was improperly appended to routine venipuncture (CPT 36415) to bypass automated same-encounter bundling edits under NCCI Chapter 1.",
-    citation: "CMS NCCI Policy Manual v30.1, Chap 1, Sec E",
-  },
-];
 
 export function DisputeModal({
   claim,
@@ -72,9 +49,63 @@ export function DisputeModal({
   const npi = claim.npi ?? "1092837482";
   const taxId = claim.taxId ?? "94-2849102";
   const patientId = claim.patientId ?? "PT-9938102";
-  const issueTitle = claim.issueTitle ?? "Upcoding / Level 5 Emergency";
+  const issueTitle = claim.issueTitle ?? "⚠️ Potential Upcoding / Documentation Review Warranted";
   const recommendedCode = claim.recommendedCode ?? "CPT 99283 · $610.00";
-  const savings = claim.savings > 0 ? claim.savings : 1840;
+
+  // Exact extracted values
+  const billedAmount = claim.billedAmount ?? 1250;
+  const benchmarkRate = claim.benchmarkRate ?? 610;
+  // Dynamic recovery: charged_amount - benchmark_rate
+  const savings = Math.max(0, billedAmount - benchmarkRate);
+
+  const ncciIndicator = claim.ncciModifierIndicator ?? 0;
+  const confidenceScore = claim.confidenceScore ?? 89.4;
+  const evidenceJustification =
+    claim.evidenceJustification ??
+    "CPT 99285 represents High-Complexity Medical Decision Making (MDM). Itemized billing lacks corresponding high-acuity diagnostics. Recommend verifying complete physician documentation for CPT 99283/99284 equivalence.";
+
+  const items = claim.billedItems ?? [
+    { code: "CPT 80053", label: "Comprehensive Metabolic Panel", amount: 92 },
+    { code: "CPT 93010", label: "Electrocardiogram, report only", amount: 118 },
+    {
+      code: "CPT 99285",
+      label: "Emergency Dept Visit, high severity",
+      amount: billedAmount,
+      disputed: true,
+    },
+    { code: "CPT 36415", label: "Venipuncture, routine", amount: 28 },
+    { code: "CPT 71046", label: "Chest X-ray, 2 views", amount: 204 },
+  ];
+
+  const totalBilled = items.reduce((sum, item) => sum + item.amount, 0);
+
+  const defaultSteps: StepItem[] = [
+    {
+      number: 1,
+      title: "Documentation Deficit Analysis",
+      detail:
+        "Encounter documentation supports moderate complexity Medical Decision Making (MDM), not high severity with immediate threat to life or organ function.",
+      citation: "CMS Evaluation & Management Guidelines (2026)",
+    },
+    {
+      number: 2,
+      title: "Critical Care & Vitals Validation",
+      detail:
+        "Zero critical care physician time recorded. Patient vital signs remained within baseline thresholds throughout the entire emergency department encounter.",
+      citation: "CPT 99291 / 99285 MDM Criteria",
+    },
+    {
+      number: 3,
+      title: `NCCI Modifier Indicator ${ncciIndicator} Inspection`,
+      detail:
+        ncciIndicator === 0
+          ? "Unbundling is prohibited under CMS NCCI Chapter 1 rules. Modifier 59 cannot be used to bypass automated bundling edits for this procedure pair."
+          : "Modifier 59 is only valid if clinical documentation confirms a distinct procedural service, separate site, or independent encounter.",
+      citation: "CMS NCCI Policy Manual v30.1, Chap 1, Sec E",
+    },
+  ];
+
+  const steps = claim.reasoningSteps ?? defaultSteps;
 
   return (
     <AnimatePresence>
@@ -105,16 +136,16 @@ export function DisputeModal({
           {/* Header */}
           <div className="flex items-center justify-between border-b border-border/80 px-6 py-4 bg-white/[0.02]">
             <div className="flex items-center gap-3">
-              <span className="grid size-9 place-items-center rounded-xl border border-danger/40 bg-danger/15 shadow-glow-danger">
-                <Gavel className="size-4 text-danger animate-pulse" />
+              <span className="grid size-9 place-items-center rounded-xl border border-amber-500/40 bg-amber-500/15 shadow-glow-amber">
+                <AlertTriangle className="size-4 text-amber-400 animate-pulse" />
               </span>
               <div>
                 <div className="flex items-center gap-2">
                   <h2 className="text-base font-semibold tracking-tight text-foreground">
                     Dispute Desk
                   </h2>
-                  <span className="rounded-full bg-danger/15 px-2 py-0.5 font-mono text-[9px] font-bold text-danger border border-danger/30 uppercase tracking-widest">
-                    AUDIT ACTION
+                  <span className="rounded-full bg-amber-500/15 px-2 py-0.5 font-mono text-[9px] font-bold text-amber-400 border border-amber-500/30 uppercase tracking-widest">
+                    DOCUMENTATION DEFICIT WARNING
                   </span>
                 </div>
                 <p className="mt-0.5 font-mono text-[11px] text-muted-foreground">
@@ -151,11 +182,11 @@ export function DisputeModal({
                         </h3>
                       </div>
                       <p className="mt-1 text-[10px] text-muted-foreground">
-                        {claim.facility} · Main Emergency Facility
+                        {claim.facility} · Extracted PDF Statement
                       </p>
                     </div>
                     <span className="rounded bg-white/10 px-2 py-1 text-[9px] uppercase tracking-wider text-foreground">
-                      ITEMIZED BILL
+                      EXTRACTED INVOICE
                     </span>
                   </div>
 
@@ -182,36 +213,40 @@ export function DisputeModal({
                     <span>Billed Amount</span>
                   </div>
 
-                  <Row code="CPT 80053" label="Comprehensive Metabolic Panel" amount="$92.00" />
-                  <Row code="CPT 93010" label="Electrocardiogram, report only" amount="$118.00" />
+                  {items.map((item, idx) =>
+                    item.disputed ? (
+                      <motion.div
+                        key={idx}
+                        initial={{ opacity: 0, scale: 0.98 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        transition={{ delay: 0.15, type: "spring", stiffness: 220, damping: 22 }}
+                        className="relative rounded-xl border-2 border-amber-500/80 bg-amber-500/15 px-3.5 py-3 shadow-glow-amber"
+                      >
+                        <div className="flex items-center justify-between gap-3 text-foreground font-semibold">
+                          <span className="truncate text-xs">
+                            {item.code} — {item.label}
+                          </span>
+                          <span className="shrink-0 tabular-nums text-amber-400 font-bold text-sm">
+                            ${item.amount.toLocaleString("en-US", { minimumFractionDigits: 2 })}
+                          </span>
+                        </div>
 
-                  {/* Disputed Upcoding Line with Glowing Neon Bounding Box */}
-                  <motion.div
-                    initial={{ opacity: 0, scale: 0.98 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    transition={{ delay: 0.15, type: "spring", stiffness: 220, damping: 22 }}
-                    className="relative rounded-xl border-2 border-danger bg-danger/15 px-3.5 py-3 shadow-glow-danger"
-                  >
-                    <div className="flex items-center justify-between gap-3 text-foreground font-semibold">
-                      <span className="truncate text-xs">
-                        CPT 99285 — Emergency Dept Visit, high severity
-                      </span>
-                      <span className="shrink-0 tabular-nums text-danger font-bold text-sm">
-                        $2,450.00
-                      </span>
-                    </div>
-
-                    <div className="mt-2 flex items-center justify-between border-t border-danger/30 pt-2 text-[10px]">
-                      <span className="text-danger/90">Documentation level insufficient</span>
-                      <span className="rounded bg-danger text-background px-2 py-0.5 text-[9px] font-bold uppercase tracking-widest shadow-sm">
-                        UPCODING DETECTED
-                      </span>
-                    </div>
-                  </motion.div>
-
-                  <Row code="CPT 36415" label="Venipuncture, routine" amount="$28.00" />
-                  <Row code="HCPCS J1100" label="Dexamethasone 1mg Injection" amount="$46.00" />
-                  <Row code="CPT 71046" label="Chest X-ray, 2 views" amount="$204.00" />
+                        <div className="mt-2 flex items-center justify-between border-t border-amber-500/30 pt-2 text-[10px]">
+                          <span className="text-amber-300">MDM Documentation Review Warranted</span>
+                          <span className="rounded bg-amber-500 text-background px-2 py-0.5 text-[9px] font-bold uppercase tracking-widest shadow-sm">
+                            DEFICIT WARNING
+                          </span>
+                        </div>
+                      </motion.div>
+                    ) : (
+                      <Row
+                        key={idx}
+                        code={item.code}
+                        label={item.label}
+                        amount={`$${item.amount.toLocaleString("en-US", { minimumFractionDigits: 2 })}`}
+                      />
+                    ),
+                  )}
                 </div>
 
                 {/* Total Summary Footer */}
@@ -219,7 +254,9 @@ export function DisputeModal({
                   <span className="uppercase tracking-widest text-[10px] text-muted-foreground">
                     Total Statement Billed
                   </span>
-                  <span className="font-mono text-sm font-bold tabular-nums">$2,938.00</span>
+                  <span className="font-mono text-sm font-bold tabular-nums">
+                    ${totalBilled.toLocaleString("en-US", { minimumFractionDigits: 2 })}
+                  </span>
                 </div>
               </div>
             </div>
@@ -229,10 +266,10 @@ export function DisputeModal({
               {/* Stat Cards */}
               <div className="grid gap-3 sm:grid-cols-2">
                 <Field
-                  label="Detected Issue"
+                  label="Audit Finding"
                   value={issueTitle}
-                  tone="danger"
-                  icon={<ShieldAlert className="size-4 text-danger" />}
+                  tone="warning"
+                  icon={<AlertTriangle className="size-4 text-amber-400" />}
                 />
                 <Field
                   label="Recommended Code"
@@ -242,13 +279,18 @@ export function DisputeModal({
                 />
               </div>
 
-              {/* Estimated Savings Highlight Box */}
+              {/* Dynamic Recoverable Savings Highlight Box */}
               <div className="rounded-2xl border border-emerald/35 bg-emerald/10 p-5 shadow-glow-emerald">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-emerald/80 font-bold">
-                      ESTIMATED RECOVERABLE SAVINGS
-                    </p>
+                    <div className="flex items-center gap-2">
+                      <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-emerald/80 font-bold">
+                        DYNAMIC RECOVERABLE SAVINGS
+                      </p>
+                      <span className="rounded bg-emerald/20 px-1.5 py-0.5 text-[9px] font-mono text-emerald border border-emerald/30">
+                        ({billedAmount} - {benchmarkRate})
+                      </span>
+                    </div>
                     <Counter target={savings} />
                   </div>
                   <div className="grid size-12 place-items-center rounded-2xl bg-emerald/20 border border-emerald/40 text-emerald">
@@ -257,13 +299,30 @@ export function DisputeModal({
                 </div>
               </div>
 
-              {/* NCCI Rule Citation Banner */}
+              {/* Evidence Justification & Confidence Score */}
+              <div className="rounded-xl border border-cyan/30 bg-cyan/10 p-4 font-mono text-xs text-muted-foreground space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-cyan font-bold flex items-center gap-1.5">
+                    <Sparkles className="size-3.5 text-cyan" />
+                    Agent Audit Evidence Justification
+                  </span>
+                  <span className="rounded bg-cyan/20 px-2 py-0.5 text-[10px] font-bold text-cyan border border-cyan/40">
+                    Confidence: {confidenceScore}%
+                  </span>
+                </div>
+                <p className="leading-relaxed text-foreground/90">{evidenceJustification}</p>
+              </div>
+
+              {/* CMS NCCI Rule Citation Banner (Indicator 0 vs 1) */}
               <div className="flex items-start gap-3 rounded-xl border border-border bg-surface px-4 py-3">
                 <ScrollText className="mt-0.5 size-4 shrink-0 text-cyan" />
                 <p className="text-xs leading-relaxed text-muted-foreground">
-                  <strong className="text-foreground">CMS Interventional NCCI v30.1 Edits:</strong>{" "}
-                  Modifier 59 invalid. Bundled services may not be reported separately when
-                  performed during the same emergency encounter.
+                  <strong className="text-foreground">
+                    CMS NCCI v30.1 Edit (Modifier Indicator {ncciIndicator}):
+                  </strong>{" "}
+                  {ncciIndicator === 0
+                    ? "Unbundling is prohibited under CMS NCCI Chapter 1 rules. Modifier 59 cannot be used to bypass automated bundling edits for this procedure pair."
+                    : "Modifier 59 is only valid if clinical documentation confirms a distinct procedural service, separate site, or independent encounter."}
                 </p>
               </div>
 
@@ -307,7 +366,7 @@ export function DisputeModal({
                           Agent Reasoning Stepper (Chain-of-Thought)
                         </p>
 
-                        {reasoningSteps.map((step) => {
+                        {steps.map((step) => {
                           const isExpanded = expandedStep === step.number;
                           return (
                             <div
@@ -357,23 +416,31 @@ export function DisputeModal({
                         transition={{ duration: 0.18 }}
                       >
                         <div className="flex items-center justify-between border-b border-border/60 pb-2 mb-3 font-mono text-[10px] text-cyan">
-                          <span>LEGAL APPEAL DISPATCH FORM</span>
-                          <span>FORM 837-DSP</span>
+                          <span>DOCUMENTATION SUBSTANTIATION REQUEST</span>
+                          <span>INQUIRY FORM 837-DSP</span>
                         </div>
                         <pre className="whitespace-pre-wrap font-mono text-[11px] leading-relaxed text-muted-foreground">
-                          {`RE: Official Dispute — Claim ${claim.id}
+                          {`RE: Documentation Substantiation Request & Coding Inquiry — Claim ${claim.id}
 To: Adjudication Dept, ${claim.provider} (NPI: ${npi})
 Date: ${claim.date}
 
-We hereby contest line item CPT 99285 ($2,450.00) on statement dated ${claim.date}.
-Documentation submitted fails to support Level 5 complexity under CMS 2026 E&M guidelines.
+We are writing to request clinical documentation substantiation for line item CPT 99285 (Billed Amount: $${billedAmount.toLocaleString("en-US", { minimumFractionDigits: 2 })}) on statement dated ${claim.date}.
 
-Pursuant to NCCI Chapter 1 Section E, routine venipuncture (CPT 36415) is bundled and cannot be reported via Modifier 59.
+AUDIT FINDING:
+${evidenceJustification}
 
-REQUEST: Re-adjudicate at CPT 99283 ($610.00) with net savings adjustment of $${savings.toLocaleString("en-US")}.00.
+CMS NCCI MODIFIER COMPLIANCE ANALYSIS:
+CMS NCCI Modifier Indicator ${ncciIndicator}: ${
+                            ncciIndicator === 0
+                              ? "Unbundling is prohibited under CMS NCCI Chapter 1 rules and Modifier 59 cannot bypass the edit."
+                              : "Modifier 59 is only valid if clinical documentation confirms a distinct procedural service, separate site, or independent encounter."
+                          }
+
+DOCUMENTATION INQUIRY REQUEST:
+Please provide complete medical chart records to substantiate CPT 99285 MDM criteria, or re-adjudicate at CPT 99283 ($${benchmarkRate.toFixed(2)}) with dynamic recoverable savings adjustment of $${savings.toLocaleString("en-US", { minimumFractionDigits: 2 })}.
 
 Respectfully Submitted,
-MedAudit Autonomous Appeal Agent`}
+MedAudit Clinical Documentation Inquiry Agent`}
                         </pre>
                       </motion.div>
                     )}
@@ -426,13 +493,13 @@ function Field({
 }: {
   label: string;
   value: string;
-  tone: "danger" | "cyan";
+  tone: "warning" | "cyan";
   icon: React.ReactNode;
 }) {
   return (
     <div
       className={`rounded-2xl border px-4 py-3.5 ${
-        tone === "danger" ? "border-danger/30 bg-danger/10" : "border-cyan/30 bg-cyan/10"
+        tone === "warning" ? "border-amber-500/30 bg-amber-500/10" : "border-cyan/30 bg-cyan/10"
       }`}
     >
       <div className="flex items-center gap-2">
@@ -441,7 +508,9 @@ function Field({
           {label}
         </p>
       </div>
-      <p className={`mt-1.5 text-sm font-bold ${tone === "danger" ? "text-danger" : "text-cyan"}`}>
+      <p
+        className={`mt-1.5 text-xs font-bold leading-tight ${tone === "warning" ? "text-amber-300" : "text-cyan"}`}
+      >
         {value}
       </p>
     </div>

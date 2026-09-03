@@ -1,5 +1,19 @@
 export type ClaimStatus = "Parsing" | "Cross-Referencing" | "Action Required" | "Clean";
 
+export interface BilledItem {
+  code: string;
+  label: string;
+  amount: number;
+  disputed?: boolean;
+}
+
+export interface ReasoningStep {
+  number: number;
+  title: string;
+  detail: string;
+  citation: string;
+}
+
 export type Claim = {
   id: string;
   provider: string;
@@ -12,6 +26,13 @@ export type Claim = {
   patientId?: string;
   issueTitle?: string;
   recommendedCode?: string;
+  billedAmount?: number;
+  benchmarkRate?: number;
+  ncciModifierIndicator?: 0 | 1;
+  confidenceScore?: number;
+  evidenceJustification?: string;
+  billedItems?: BilledItem[];
+  reasoningSteps?: ReasoningStep[];
 };
 
 export const claims: Claim[] = [
@@ -20,13 +41,54 @@ export const claims: Claim[] = [
     provider: "St. Anselm Regional",
     facility: "Emergency Department",
     date: "Sep 3, 2026",
-    savings: 1840,
+    savings: 640,
     status: "Action Required",
     npi: "1092837482",
     taxId: "94-2849102",
     patientId: "PT-9938102",
-    issueTitle: "Upcoding / Level 5",
+    issueTitle: "⚠️ Potential Upcoding / Documentation Review Warranted",
     recommendedCode: "CPT 99283 · $610.00",
+    billedAmount: 1250,
+    benchmarkRate: 610,
+    ncciModifierIndicator: 0,
+    confidenceScore: 89.4,
+    evidenceJustification:
+      "CPT 99285 represents High-Complexity Medical Decision Making (MDM). Itemized billing lacks corresponding high-acuity diagnostics. Recommend verifying complete physician documentation for CPT 99283/99284 equivalence.",
+    billedItems: [
+      { code: "CPT 80053", label: "Comprehensive Metabolic Panel", amount: 92 },
+      { code: "CPT 93010", label: "Electrocardiogram, report only", amount: 118 },
+      {
+        code: "CPT 99285",
+        label: "Emergency Dept Visit, high severity",
+        amount: 1250,
+        disputed: true,
+      },
+      { code: "CPT 36415", label: "Venipuncture, routine", amount: 28 },
+      { code: "CPT 71046", label: "Chest X-ray, 2 views", amount: 204 },
+    ],
+    reasoningSteps: [
+      {
+        number: 1,
+        title: "Documentation Deficit Analysis",
+        detail:
+          "Encounter documentation supports moderate complexity Medical Decision Making (MDM), not high severity with immediate threat to life or organ function.",
+        citation: "CMS Evaluation & Management Guidelines (2026)",
+      },
+      {
+        number: 2,
+        title: "Critical Care & Vitals Validation",
+        detail:
+          "Zero critical care physician time recorded. Patient vital signs remained within baseline thresholds throughout the entire emergency department encounter.",
+        citation: "CPT 99291 / 99285 MDM Criteria",
+      },
+      {
+        number: 3,
+        title: "NCCI Modifier Indicator 0 Inspection",
+        detail:
+          "Service is prohibited from unbundling under CMS NCCI Chapter 1 rules. Modifier 59 cannot be used to bypass automated bundling edits for this procedure pair.",
+        citation: "CMS NCCI Policy Manual v30.1, Chap 1, Sec E",
+      },
+    ],
   },
   {
     id: "CLM-88209",
@@ -60,8 +122,14 @@ export const claims: Claim[] = [
     npi: "1425364758",
     taxId: "33-1029384",
     patientId: "PT-7719283",
-    issueTitle: "Improper Surgical Modifier 59",
+    issueTitle: "⚠️ Potential Upcoding / Documentation Review Warranted",
     recommendedCode: "CPT 29881 · $1,420.00",
+    billedAmount: 2032,
+    benchmarkRate: 1420,
+    ncciModifierIndicator: 1,
+    confidenceScore: 92.1,
+    evidenceJustification:
+      "Modifier 59 is only valid if clinical documentation confirms a distinct procedural service, separate site, or independent encounter.",
   },
   {
     id: "CLM-88172",
@@ -73,30 +141,6 @@ export const claims: Claim[] = [
     npi: "1928374650",
     taxId: "12-3456789",
     patientId: "PT-5528190",
-  },
-  {
-    id: "CLM-88140",
-    provider: "Harbor Anesthesia Group",
-    facility: "Peri-operative Care",
-    date: "Sep 1, 2026",
-    savings: 0,
-    status: "Clean",
-    npi: "1122334455",
-    taxId: "99-8877665",
-    patientId: "PT-1192837",
-  },
-  {
-    id: "CLM-88121",
-    provider: "Meridian Cardiology",
-    facility: "Cath Lab Diagnostic",
-    date: "Sep 1, 2026",
-    savings: 3275,
-    status: "Action Required",
-    npi: "1592837461",
-    taxId: "77-6655443",
-    patientId: "PT-3382910",
-    issueTitle: "Unbundled Coronary Angioplasty",
-    recommendedCode: "CPT 92920 · $4,100.00",
   },
 ];
 

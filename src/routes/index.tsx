@@ -1,11 +1,29 @@
 import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { HudHeader } from "@/components/medaudit/HudHeader";
 import { IngestionZone } from "@/components/medaudit/IngestionZone";
 import { ClaimsFeed } from "@/components/medaudit/ClaimsFeed";
 import { DisputeModal } from "@/components/medaudit/DisputeModal";
-import { claims as seedClaims, type Claim } from "@/components/medaudit/data";
+import { type Claim } from "@/components/medaudit/data";
+import { api, type DocumentResponse, type DocumentDetailResponse } from "@/lib/api";
+
+const mapBackendToClaim = (doc: DocumentResponse): Claim => {
+  let status: Claim["status"] = "Auditing";
+  if (doc.status === "COMPLETED") status = "Action Required";
+  if (doc.status === "CLEAN") status = "Clean";
+  if (doc.status === "FAILED") status = "Action Required"; // Or handle failure appropriately
+
+  return {
+    id: doc.id,
+    provider: doc.filename, // We use filename as a fallback until full details are loaded
+    facility: doc.status.replace("_", " "),
+    date: new Date(doc.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
+    savings: 0, // In a real app, savings would come from the dispute details
+    status,
+  };
+};
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -30,37 +48,54 @@ export const Route = createFileRoute("/")({
 });
 
 function Index() {
-  const [claims, setClaims] = useState<Claim[]>(seedClaims);
-  const [selected, setSelected] = useState<Claim | null>(null);
+  const queryClient = useQueryClient();
+  const [selectedClaimId, setSelectedClaimId] = useState<string | null>(null);
 
+  const { data: documents = [], isLoading } = useQuery({
+    queryKey: ["documents"],
+    queryFn: api.getDocuments,
+    refetchInterval: 5000, // Poll every 5s while audits run
+  });
+
+  const { data: selectedDocument } = useQuery({
+    queryKey: ["document", selectedClaimId],
+    queryFn: () => api.getDocumentDetail(selectedClaimId!),
+    enabled: !!selectedClaimId,
+  });
+
+  const uploadMutation = useMutation({
+    mutationFn: async (file: File) => {
+      const { presigned_url, document_id } = await api.getUploadPresignedUrl(file.name);
+      await api.uploadToS3(presigned_url, file);
+      await api.triggerProcessing(document_id);
+      return document_id;
+    },
+    onSuccess: (documentId) => {
+      toast.success("Document queued", { description: `${documentId} handed to the audit agent.` });
+      queryClient.invalidateQueries({ queryKey: ["documents"] });
+    },
+    onError: (error) => {
+      toast.error("Upload failed", { description: (error as Error).message });
+    },
+  });
+
+  const claims = documents.map(mapBackendToClaim);
   const activeDocs = claims.filter((c) => c.status !== "Clean").length;
 
-  const handleIngest = () => {
-    const id = `CLM-${88300 + claims.length}`;
-    setClaims((prev) => [
-      {
-        id,
-        provider: "Incoming Upload",
-        facility: "Parsing document",
-        date: "Sep 3, 2026",
-        savings: 0,
-        status: "Auditing",
-      },
-      ...prev,
-    ]);
-    toast.success("Document queued", { description: `${id} handed to the audit agent.` });
+  const handleIngest = (file: File) => {
+    uploadMutation.mutate(file);
   };
 
   const handleAuthorize = () => {
-    if (!selected) return;
-    setClaims((prev) =>
-      prev.map((c) => (c.id === selected.id ? { ...c, status: "Clean" as const } : c)),
-    );
+    if (!selectedClaimId) return;
     toast.success("Dispute dispatched", {
-      description: `${selected.id} — letter sent, $1,840.00 pending recovery.`,
+      description: `${selectedClaimId} — letter sent, pending recovery.`,
     });
-    setSelected(null);
+    setSelectedClaimId(null);
   };
+
+  // Map the selectedDocument detail back to a Claim for the modal if needed
+  const selectedClaim = selectedDocument ? mapBackendToClaim(selectedDocument) : null;
 
   return (
     <div className="min-h-screen void-grid">
@@ -82,13 +117,17 @@ function Index() {
 
         <div className="mt-10 grid gap-6 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
           <IngestionZone onIngest={handleIngest} />
-          <ClaimsFeed claims={claims} onSelect={setSelected} />
+          {isLoading ? (
+            <div className="flex items-center justify-center p-8 text-sm text-muted-foreground">Loading claims...</div>
+          ) : (
+            <ClaimsFeed claims={claims} onSelect={(c) => setSelectedClaimId(c.id)} />
+          )}
         </div>
       </main>
 
       <DisputeModal
-        claim={selected}
-        onClose={() => setSelected(null)}
+        claim={selectedClaim}
+        onClose={() => setSelectedClaimId(null)}
         onAuthorize={handleAuthorize}
       />
     </div>

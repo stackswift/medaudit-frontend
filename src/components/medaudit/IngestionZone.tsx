@@ -2,8 +2,9 @@ import { useRef, useState } from "react";
 import { motion, useMotionValue, useSpring, useTransform } from "motion/react";
 import { FileText, UploadCloud } from "lucide-react";
 
-export function IngestionZone({ onIngest }: { onIngest: () => void }) {
+export function IngestionZone({ onIngest }: { onIngest: (file: File) => void }) {
   const ref = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [dragging, setDragging] = useState(false);
 
   const mx = useMotionValue(0);
@@ -39,7 +40,10 @@ export function IngestionZone({ onIngest }: { onIngest: () => void }) {
       onDrop={(e) => {
         e.preventDefault();
         setDragging(false);
-        onIngest();
+        const file = e.dataTransfer.files?.[0];
+        if (file) {
+          onIngest(file);
+        }
       }}
       className={`relative overflow-hidden rounded-2xl border bg-surface p-8 backdrop-blur-xl transition-colors sm:p-12 ${
         dragging ? "border-cyan/50" : "border-border"
@@ -101,8 +105,22 @@ export function IngestionZone({ onIngest }: { onIngest: () => void }) {
             The agent parses EOBs, 837P and itemized bills, then cross-references CMS coding rules
             line by line.
           </p>
+          <input
+            type="file"
+            ref={fileInputRef}
+            className="hidden"
+            accept=".pdf,.png,.jpg,.jpeg"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) {
+                onIngest(file);
+                // Reset value to allow selecting same file again
+                if (fileInputRef.current) fileInputRef.current.value = "";
+              }
+            }}
+          />
           <button
-            onClick={onIngest}
+            onClick={() => fileInputRef.current?.click()}
             className="mt-6 inline-flex items-center gap-2 rounded-lg border border-cyan/30 bg-cyan-soft px-4 py-2 text-sm font-medium text-foreground transition-shadow hover:shadow-glow-cyan"
           >
             <UploadCloud className="size-4 text-cyan" />

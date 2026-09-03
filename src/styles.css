@@ -1,0 +1,126 @@
+@import "tailwindcss" source(none);
+@source "../src";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+/*
+ * MedAudit design system — void black, glass borders, cyan accent.
+ * All color values use oklch. Never hardcode colors in components.
+ */
+
+@theme inline {
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --radius-2xl: calc(var(--radius) + 8px);
+  --radius-3xl: calc(var(--radius) + 12px);
+  --radius-4xl: calc(var(--radius) + 16px);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-surface: var(--surface);
+  --color-surface-strong: var(--surface-strong);
+  --color-cyan: var(--cyan);
+  --color-cyan-soft: var(--cyan-soft);
+  --color-danger: var(--danger);
+  --color-warn: var(--warn);
+  --color-emerald: var(--emerald);
+  --font-sans: "Geist", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "Geist Mono", ui-monospace, monospace;
+  --shadow-glow-cyan:
+    0 0 0 1px oklch(0.78 0.13 205 / 0.28), 0 12px 40px -12px oklch(0.78 0.13 205 / 0.55);
+  --shadow-glow-danger:
+    0 0 0 1px oklch(0.66 0.22 12 / 0.5), 0 0 28px -4px oklch(0.66 0.22 12 / 0.55);
+  --shadow-panel: 0 32px 80px -32px oklch(0 0 0 / 0.9);
+}
+
+:root,
+.dark {
+  --radius: 0.75rem;
+  --background: oklch(0.13 0.012 250);
+  --foreground: oklch(0.97 0.004 250);
+  --card: oklch(0.17 0.012 250);
+  --card-foreground: oklch(0.97 0.004 250);
+  --popover: oklch(0.16 0.012 250);
+  --popover-foreground: oklch(0.97 0.004 250);
+  --primary: oklch(0.78 0.13 205);
+  --primary-foreground: oklch(0.15 0.02 240);
+  --secondary: oklch(0.24 0.014 250);
+  --secondary-foreground: oklch(0.95 0.004 250);
+  --muted: oklch(0.22 0.012 250);
+  --muted-foreground: oklch(0.66 0.014 250);
+  --accent: oklch(0.26 0.016 250);
+  --accent-foreground: oklch(0.97 0.004 250);
+  --destructive: oklch(0.66 0.22 12);
+  --destructive-foreground: oklch(0.98 0.004 250);
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 14%);
+  --ring: oklch(0.78 0.13 205 / 60%);
+  --surface: oklch(1 0 0 / 4%);
+  --surface-strong: oklch(1 0 0 / 7%);
+  --cyan: oklch(0.78 0.13 205);
+  --cyan-soft: oklch(0.78 0.13 205 / 18%);
+  --danger: oklch(0.66 0.22 12);
+  --warn: oklch(0.82 0.16 78);
+  --emerald: oklch(0.79 0.17 163);
+}
+
+@layer base {
+  * {
+    border-color: var(--color-border);
+  }
+
+  html {
+    color-scheme: dark;
+  }
+
+  body {
+    background-color: oklch(0.09 0.008 250);
+    color: var(--color-foreground);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+}
+
+@utility void-grid {
+  background-image:
+    radial-gradient(900px circle at 15% -10%, oklch(0.78 0.13 205 / 0.14), transparent 60%),
+    radial-gradient(700px circle at 85% 0%, oklch(0.66 0.22 12 / 0.1), transparent 60%),
+    linear-gradient(to bottom, oklch(1 0 0 / 0.02) 1px, transparent 1px),
+    linear-gradient(to right, oklch(1 0 0 / 0.02) 1px, transparent 1px);
+  background-size:
+    100% 100%,
+    100% 100%,
+    64px 64px,
+    64px 64px;
+}
+
+@utility glass {
+  background-color: var(--surface);
+  border: 1px solid var(--border);
+  backdrop-filter: blur(20px) saturate(150%);
+}
+
+@utility text-gradient-cyan {
+  background-image: linear-gradient(100deg, oklch(0.97 0.004 250), oklch(0.78 0.13 205));
+  background-clip: text;
+  color: transparent;
+}

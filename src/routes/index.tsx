@@ -34,53 +34,64 @@ function Index() {
   const [selected, setSelected] = useState<Claim | null>(null);
 
   const activeDocs = claims.filter((c) => c.status !== "Clean").length;
+  const totalRecovered = claims
+    .filter((c) => c.status === "Clean")
+    .reduce((acc, c) => acc + c.savings, 7567);
 
   const handleIngest = () => {
     const id = `CLM-${88300 + claims.length}`;
     setClaims((prev) => [
       {
         id,
-        provider: "Incoming Upload",
-        facility: "Parsing document",
+        provider: "Mercy General Hospital",
+        facility: "Emergency Trauma",
         date: "Sep 3, 2026",
-        savings: 0,
-        status: "Auditing",
+        savings: 1450,
+        status: "Cross-Referencing",
+        npi: "1892837461",
+        taxId: "42-1029384",
+        patientId: `PT-${Math.floor(1000000 + Math.random() * 9000000)}`,
+        issueTitle: "Upcoding / Level 5 Emergency",
+        recommendedCode: "CPT 99283 · $610.00",
       },
       ...prev,
     ]);
-    toast.success("Document queued", { description: `${id} handed to the audit agent.` });
+    toast.success("Document Ingested", { description: `${id} extracted and handed to AgentCore.` });
   };
 
   const handleAuthorize = () => {
     if (!selected) return;
+    const recoveredAmount = selected.savings > 0 ? selected.savings : 1840;
     setClaims((prev) =>
       prev.map((c) => (c.id === selected.id ? { ...c, status: "Clean" as const } : c)),
     );
-    toast.success("Dispute dispatched", {
-      description: `${selected.id} — letter sent, $1,840.00 pending recovery.`,
+    toast.success("Dispute Dispatched", {
+      description: `${selected.id} — Form 837-DSP dispatched. $${recoveredAmount.toLocaleString("en-US")} marked for recovery.`,
     });
     setSelected(null);
   };
 
   return (
-    <div className="min-h-screen void-grid">
-      <HudHeader activeDocs={activeDocs} />
+    <div className="min-h-screen void-grid bg-[#05070a] text-foreground font-sans">
+      <HudHeader activeDocs={activeDocs} totalRecovered={totalRecovered} />
 
-      <main className="mx-auto w-full max-w-7xl px-4 pb-20 pt-10 sm:px-6">
-        <div className="max-w-2xl">
-          <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-cyan">
-            Audit console
-          </p>
-          <h1 className="mt-3 text-pretty text-3xl font-semibold tracking-tight sm:text-4xl">
-            Every claim, line by line, against the coding rulebook.
+      <main className="mx-auto w-full max-w-7xl px-4 pb-24 pt-10 sm:px-6">
+        <div className="max-w-3xl">
+          <div className="inline-flex items-center gap-2 rounded-full border border-cyan/30 bg-cyan/10 px-3 py-1 font-mono text-[10px] uppercase tracking-[0.22em] text-cyan shadow-glow-cyan">
+            <span className="size-1.5 rounded-full bg-cyan animate-ping" />
+            <span>Autonomous Audit Console</span>
+          </div>
+          <h1 className="mt-4 text-pretty text-3xl font-extrabold tracking-tight sm:text-5xl text-foreground leading-tight">
+            Every claim, line by line, against the{" "}
+            <span className="text-gradient-emerald-cyan">coding rulebook.</span>
           </h1>
-          <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
-            The agent runs continuously across incoming statements, surfacing only what needs a
-            human signature.
+          <p className="mt-3 text-base leading-relaxed text-muted-foreground max-w-2xl">
+            MedAudit agent runs continuously across incoming EOBs and 837P statements, flagging
+            upcoding and unbundling violations, citing CMS NCCI rules, and dispatching appeals.
           </p>
         </div>
 
-        <div className="mt-10 grid gap-6 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
+        <div className="mt-10 grid gap-8 lg:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
           <IngestionZone onIngest={handleIngest} />
           <ClaimsFeed claims={claims} onSelect={setSelected} />
         </div>

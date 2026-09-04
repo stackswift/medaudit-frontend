@@ -1,4 +1,33 @@
-export type ClaimStatus = "Parsing" | "Cross-Referencing" | "Action Required" | "Clean";
+export type ClaimStatus =
+  | "PENDING"
+  | "SCANNING"
+  | "CLEARED"
+  | "DISPUTED"
+  | "ERROR"
+  | "Parsing"
+  | "Cross-Referencing"
+  | "Action Required"
+  | "Clean";
+
+export interface DisputedCodeItem {
+  cpt_code: string;
+  billed_description: string;
+  standard_description: string;
+  billed_amount: number;
+  medicare_baseline: number;
+  issue: "UPCODING" | "UNBUNDLING" | "PRICE_DISPARITY" | "OUT_OF_NETWORK" | string;
+}
+
+export interface PatientInfo {
+  name?: string;
+  dob?: string;
+  policy_id?: string;
+}
+
+export interface ProviderInfo {
+  name?: string;
+  npi?: string;
+}
 
 export interface BilledItem {
   code: string;
@@ -21,6 +50,7 @@ export type Claim = {
   date: string;
   savings: number;
   status: ClaimStatus;
+  filename?: string;
   npi?: string;
   taxId?: string;
   patientId?: string;
@@ -33,6 +63,12 @@ export type Claim = {
   evidenceJustification?: string;
   billedItems?: BilledItem[];
   reasoningSteps?: ReasoningStep[];
+  // Backend & LLM integration fields
+  disputed_codes?: DisputedCodeItem[];
+  agent_reasoning?: string;
+  dispute_letter_markdown?: string;
+  patient_info?: PatientInfo;
+  provider_info?: ProviderInfo;
 };
 
 export const claims: Claim[] = [
@@ -42,7 +78,8 @@ export const claims: Claim[] = [
     facility: "Emergency Department",
     date: "Sep 3, 2026",
     savings: 640,
-    status: "Action Required",
+    status: "DISPUTED",
+    filename: "emergency_invoice_st_anselm.pdf",
     npi: "1092837482",
     taxId: "94-2849102",
     patientId: "PT-9938102",
@@ -54,6 +91,35 @@ export const claims: Claim[] = [
     confidenceScore: 89.4,
     evidenceJustification:
       "CPT 99285 represents High-Complexity Medical Decision Making (MDM). Itemized billing lacks corresponding high-acuity diagnostics. Recommend verifying complete physician documentation for CPT 99283/99284 equivalence.",
+    disputed_codes: [
+      {
+        cpt_code: "99285",
+        billed_description: "Emergency Dept Visit, high severity",
+        standard_description: "Emergency Dept Visit, moderate severity (CPT 99283)",
+        billed_amount: 1250,
+        medicare_baseline: 610,
+        issue: "UPCODING",
+      },
+    ],
+    agent_reasoning:
+      "Encounter documentation supports moderate complexity Medical Decision Making (MDM), not high severity with immediate threat to life or organ function. Zero critical care physician time recorded. Patient vital signs remained within baseline thresholds throughout the entire emergency department encounter.",
+    dispute_letter_markdown: `RE: Documentation Substantiation Request & Coding Inquiry — Claim CLM-88214
+To: Adjudication Dept, St. Anselm Regional (NPI: 1092837482)
+Date: Sep 3, 2026
+
+We are writing to request clinical documentation substantiation for line item CPT 99285 (Billed Amount: $1,250.00) on statement dated Sep 3, 2026.
+
+AUDIT FINDING:
+CPT 99285 represents High-Complexity Medical Decision Making (MDM). Itemized billing lacks corresponding high-acuity diagnostics. Recommend verifying complete physician documentation for CPT 99283/99284 equivalence.
+
+CMS NCCI MODIFIER COMPLIANCE ANALYSIS:
+CMS NCCI Modifier Indicator 0: Unbundling is prohibited under CMS NCCI Chapter 1 rules and Modifier 59 cannot bypass the edit.
+
+DOCUMENTATION INQUIRY REQUEST:
+Please provide complete medical chart records to substantiate CPT 99285 MDM criteria, or re-adjudicate at CPT 99283 ($610.00) with dynamic recoverable savings adjustment of $640.00.
+
+Respectfully Submitted,
+MedAudit Clinical Documentation Inquiry Agent`,
     billedItems: [
       { code: "CPT 80053", label: "Comprehensive Metabolic Panel", amount: 92 },
       { code: "CPT 93010", label: "Electrocardiogram, report only", amount: 118 },
@@ -96,7 +162,7 @@ export const claims: Claim[] = [
     facility: "Imaging · MRI Contrast",
     date: "Sep 3, 2026",
     savings: 0,
-    status: "Parsing",
+    status: "SCANNING",
     npi: "1847392019",
     taxId: "82-1928472",
     patientId: "PT-4428190",
@@ -107,7 +173,7 @@ export const claims: Claim[] = [
     facility: "Inpatient Electro-Physiology",
     date: "Sep 3, 2026",
     savings: 1240,
-    status: "Cross-Referencing",
+    status: "PENDING",
     npi: "1639201928",
     taxId: "54-9382104",
     patientId: "PT-8821903",
@@ -118,7 +184,7 @@ export const claims: Claim[] = [
     facility: "Outpatient Surgery",
     date: "Sep 2, 2026",
     savings: 612,
-    status: "Action Required",
+    status: "DISPUTED",
     npi: "1425364758",
     taxId: "33-1029384",
     patientId: "PT-7719283",
@@ -130,6 +196,16 @@ export const claims: Claim[] = [
     confidenceScore: 92.1,
     evidenceJustification:
       "Modifier 59 is only valid if clinical documentation confirms a distinct procedural service, separate site, or independent encounter.",
+    disputed_codes: [
+      {
+        cpt_code: "29881",
+        billed_description: "Arthroscopy knee surgical with meniscectomy",
+        standard_description: "Arthroscopy knee diagnostic (CPT 29870)",
+        billed_amount: 2032,
+        medicare_baseline: 1420,
+        issue: "UNBUNDLING",
+      },
+    ],
   },
   {
     id: "CLM-88172",
@@ -137,7 +213,7 @@ export const claims: Claim[] = [
     facility: "Primary Care",
     date: "Sep 2, 2026",
     savings: 0,
-    status: "Clean",
+    status: "CLEARED",
     npi: "1928374650",
     taxId: "12-3456789",
     patientId: "PT-5528190",

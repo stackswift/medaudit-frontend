@@ -47,7 +47,9 @@ export const auditUploadServerFn = createServerFn({ method: "POST" })
     return {
       claimId,
       provider: cleanProviderName || "St. Anselm Regional Facility",
-      facility: data?.fileType?.includes("pdf") ? "Emergency Medical Record (PDF)" : "OCR Image Scan",
+      facility: data?.fileType?.includes("pdf")
+        ? "Emergency Medical Record (PDF)"
+        : "OCR Image Scan",
       date: todayDate,
       npi: "1092837482",
       taxId: "94-2849102",

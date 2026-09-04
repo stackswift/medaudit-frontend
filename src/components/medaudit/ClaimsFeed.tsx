@@ -4,6 +4,16 @@ import { currency, type Claim, type ClaimStatus } from "./data";
 
 function StatusBadge({ status }: { status: ClaimStatus }) {
   const map: Record<ClaimStatus, { cls: string; icon: React.ReactNode; label: string }> = {
+    PENDING: {
+      cls: "border-zinc-500/40 bg-zinc-500/15 text-zinc-300",
+      icon: <Loader2 className="size-3 animate-spin text-zinc-300" />,
+      label: "QUEUED",
+    },
+    SCANNING: {
+      cls: "border-cyan/40 bg-cyan/15 text-cyan animate-pulse",
+      icon: <Loader2 className="size-3 animate-spin text-cyan" />,
+      label: "SCANNING",
+    },
     Parsing: {
       cls: "border-cyan/40 bg-cyan/15 text-cyan animate-pulse",
       icon: <Loader2 className="size-3 animate-spin text-cyan" />,
@@ -14,18 +24,33 @@ function StatusBadge({ status }: { status: ClaimStatus }) {
       icon: <Cpu className="size-3 text-violet animate-pulse" />,
       label: "CROSS-REFERENCING",
     },
+    DISPUTED: {
+      cls: "border-amber-500/50 bg-amber-500/15 text-amber-300 shadow-glow-amber animate-pulse",
+      icon: <TriangleAlert className="size-3 text-amber-400" />,
+      label: "DISPUTED",
+    },
     "Action Required": {
-      cls: "border-danger/50 bg-danger/15 text-danger shadow-glow-danger animate-pulse",
-      icon: <TriangleAlert className="size-3 text-danger" />,
+      cls: "border-amber-500/50 bg-amber-500/15 text-amber-300 shadow-glow-amber animate-pulse",
+      icon: <TriangleAlert className="size-3 text-amber-400" />,
       label: "ACTION REQUIRED",
+    },
+    CLEARED: {
+      cls: "border-emerald/30 bg-emerald/10 text-emerald",
+      icon: <CircleCheck className="size-3 text-emerald" />,
+      label: "CLEARED",
     },
     Clean: {
       cls: "border-emerald/30 bg-emerald/10 text-emerald",
       icon: <CircleCheck className="size-3 text-emerald" />,
       label: "CLEAN",
     },
+    ERROR: {
+      cls: "border-danger/50 bg-danger/15 text-danger shadow-glow-danger",
+      icon: <TriangleAlert className="size-3 text-danger" />,
+      label: "ERROR",
+    },
   };
-  const s = map[status];
+  const s = map[status] || map.PENDING;
   return (
     <span
       className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 font-mono text-[10px] uppercase font-semibold tracking-wider transition-transform group-hover:scale-105 ${s.cls}`}
@@ -74,7 +99,7 @@ export function ClaimsFeed({
       {/* Claims List */}
       <ul className="relative divide-y divide-border/60">
         {claims.map((claim, i) => {
-          const actionable = claim.status === "Action Required";
+          const actionable = claim.status === "Action Required" || claim.status === "DISPUTED";
           return (
             <motion.li
               key={claim.id}

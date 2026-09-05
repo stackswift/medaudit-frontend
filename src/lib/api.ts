@@ -1,8 +1,8 @@
 // src/lib/api.ts
 
-// This represents the environment variable for your FastAPI backend
-// In Vite, this would typically be import.meta.env.VITE_API_URL
-const API_BASE = "http://localhost:8000/api/v1";
+// In Vite/Vercel, configure VITE_API_URL (e.g. https://api.yourdomain.com)
+const rawApiUrl = import.meta.env.VITE_API_URL || "http://localhost:8000";
+const API_BASE = rawApiUrl.endsWith("/api/v1") ? rawApiUrl : `${rawApiUrl}/api/v1`;
 
 // Simple helper to grab the token (to be implemented with real Auth)
 function getAuthToken() {

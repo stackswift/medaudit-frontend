@@ -70,6 +70,18 @@ export const api = {
     });
   },
 
+  approveDispute: (id: string): Promise<{ id: string; document_id: string; status: string; message: string }> => {
+    return fetchWithAuth(`/disputes/${id}/approve`, {
+      method: "POST",
+    });
+  },
+
+  dismissDispute: (id: string): Promise<{ id: string; document_id: string; status: string; message: string }> => {
+    return fetchWithAuth(`/disputes/${id}/dismiss`, {
+      method: "POST",
+    });
+  },
+
   // S3 presigned POST — sends a multipart/form-data body with the
   // signed fields returned by the backend, then appends the file last.
   uploadToS3: async (uploadUrl: string, file: File, fields: Record<string, string>) => {

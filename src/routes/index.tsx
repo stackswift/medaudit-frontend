@@ -103,12 +103,27 @@ function Index() {
     uploadMutation.mutate(file);
   };
 
+  const authorizeMutation = useMutation({
+    mutationFn: async (claimId: string) => {
+      return await api.approveDispute(claimId);
+    },
+    onSuccess: (data) => {
+      toast.success("Dispute dispatched", {
+        description: `${data.document_id || selectedClaimId} — formal appeal queued for transmission, pending recovery.`,
+      });
+      queryClient.invalidateQueries({ queryKey: ["documents"] });
+      setSelectedClaimId(null);
+    },
+    onError: (err) => {
+      toast.error("Failed to dispatch dispute", {
+        description: (err as Error).message,
+      });
+    },
+  });
+
   const handleAuthorize = () => {
     if (!selectedClaimId) return;
-    toast.success("Dispute dispatched", {
-      description: `${selectedClaimId} — letter sent, pending recovery.`,
-    });
-    setSelectedClaimId(null);
+    authorizeMutation.mutate(selectedClaimId);
   };
 
   // Map the selectedDocument detail back to a Claim for the modal if needed

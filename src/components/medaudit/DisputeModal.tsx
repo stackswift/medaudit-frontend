@@ -2,15 +2,19 @@ import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { Gavel, ScrollText, Sparkles, X } from "lucide-react";
 import type { Claim } from "./data";
+import type { DocumentDetailResponse } from "@/lib/api";
+import { LegalLetterViewer } from "./LegalLetterViewer";
 
 const tabs = ["Agent Logic Summary", "Generated Legal Letter Preview"] as const;
 
 export function DisputeModal({
   claim,
+  documentDetail,
   onClose,
   onAuthorize,
 }: {
   claim: Claim | null;
+  documentDetail?: DocumentDetailResponse | null;
   onClose: () => void;
   onAuthorize: () => void;
 }) {
@@ -21,6 +25,54 @@ export function DisputeModal({
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
+
+  if (!claim) return null;
+
+  const hasAuditData = Boolean(
+    documentDetail?.disputed_codes && documentDetail.disputed_codes.length > 0
+  );
+
+  const disputedCodes = documentDetail?.disputed_codes || [];
+  const primaryIssue = disputedCodes[0]?.issue || "Upcoding / Code Unbundling";
+  const primaryBaseline = disputedCodes[0]?.medicare_baseline != null
+    ? `Medicare Baseline: $${Number(disputedCodes[0].medicare_baseline).toFixed(2)}`
+    : "CPT 99283 · $610.00";
+
+  const totalBilled = hasAuditData
+    ? disputedCodes.reduce((acc, c) => acc + Number(c.billed_amount || 0), 0)
+    : 2938;
+
+  const dynamicSavings = claim.savings > 0 ? claim.savings : 1840;
+
+  const reasoningBullets = documentDetail?.agent_reasoning
+    ? documentDetail.agent_reasoning
+        .split(/(?<=[.?!])\s+/)
+        .filter((s) => s.trim().length > 8)
+    : [
+        "Encounter documentation supports moderate complexity MDM, not high severity with threat to life.",
+        "No critical care time recorded; vitals remained within stable thresholds for the full visit.",
+        "Modifier 59 appended to venipuncture despite same-session bundling under NCCI edits.",
+        "Level downgrade 99285 → 99283 aligns with documented history, exam, and MDM.",
+      ];
+
+  const disputeLetter =
+    documentDetail?.dispute_letter_markdown ||
+    `RE: Claim ${claim.id} — Request for Corrected Adjudication
+
+To the Billing Department of ${claim.provider}:
+
+We have reviewed the itemized statement dated ${claim.date}.
+Line item CPT 99285 does not meet the documentation
+threshold defined by CMS for high-severity emergency
+services. Additionally, Modifier 59 has been applied to a
+bundled service in violation of NCCI edits.
+
+We request re-adjudication at CPT 99283 ($610.00) and
+removal of the improperly unbundled line, a net reduction
+of $1,840.00. Please confirm within 30 days.
+
+Respectfully,
+MedAudit — Autonomous Audit Agent`;
 
   return (
     <AnimatePresence>
@@ -77,34 +129,65 @@ export function DisputeModal({
                   </div>
 
                   <div className="mt-4 space-y-2">
-                    <Row code="CPT 80053" label="Comprehensive Metabolic Panel" amount="$92.00" />
-                    <Row code="CPT 93010" label="Electrocardiogram, report only" amount="$118.00" />
+                    {hasAuditData ? (
+                      disputedCodes.map((item: any, idx: number) => (
+                        <motion.div
+                          key={item.cpt_code || idx}
+                          initial={{ opacity: 0, scale: 0.98 }}
+                          animate={{ opacity: 1, scale: 1 }}
+                          transition={{ delay: 0.08 * idx, type: "spring", stiffness: 220, damping: 22 }}
+                          className="relative rounded-lg border border-danger/60 bg-danger/10 px-3 py-2.5 shadow-glow-danger"
+                        >
+                          <div className="flex items-center justify-between gap-3 text-foreground">
+                            <span className="truncate font-medium">
+                              CPT {item.cpt_code} — {item.billed_description || item.standard_description}
+                            </span>
+                            <span className="shrink-0 tabular-nums text-danger">
+                              ${Number(item.billed_amount || 0).toFixed(2)}
+                            </span>
+                          </div>
+                          <div className="mt-1 flex items-center justify-between text-[10px] text-muted-foreground">
+                            <span>Medicare Baseline: ${Number(item.medicare_baseline || 0).toFixed(2)}</span>
+                            <span className="rounded bg-danger px-1.5 py-0.5 text-[9px] uppercase tracking-widest text-background">
+                              {item.issue || "Flagged"}
+                            </span>
+                          </div>
+                        </motion.div>
+                      ))
+                    ) : (
+                      <>
+                        <Row code="CPT 80053" label="Comprehensive Metabolic Panel" amount="$92.00" />
+                        <Row code="CPT 93010" label="Electrocardiogram, report only" amount="$118.00" />
 
-                    <motion.div
-                      initial={{ opacity: 0, scale: 0.98 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      transition={{ delay: 0.18, type: "spring", stiffness: 220, damping: 22 }}
-                      className="relative rounded-lg border border-danger/60 bg-danger/10 px-3 py-2.5 shadow-glow-danger"
-                    >
-                      <div className="flex items-center justify-between gap-3 text-foreground">
-                        <span className="truncate">
-                          CPT 99285 — Emergency Dept Visit, high severity
-                        </span>
-                        <span className="shrink-0 tabular-nums text-danger">$2,450.00</span>
-                      </div>
-                      <span className="absolute -top-2.5 left-3 rounded bg-danger px-1.5 py-0.5 text-[9px] uppercase tracking-widest text-background">
-                        Flagged
-                      </span>
-                    </motion.div>
+                        <motion.div
+                          initial={{ opacity: 0, scale: 0.98 }}
+                          animate={{ opacity: 1, scale: 1 }}
+                          transition={{ delay: 0.18, type: "spring", stiffness: 220, damping: 22 }}
+                          className="relative rounded-lg border border-danger/60 bg-danger/10 px-3 py-2.5 shadow-glow-danger"
+                        >
+                          <div className="flex items-center justify-between gap-3 text-foreground">
+                            <span className="truncate">
+                              CPT 99285 — Emergency Dept Visit, high severity
+                            </span>
+                            <span className="shrink-0 tabular-nums text-danger">$2,450.00</span>
+                          </div>
+                          <span className="absolute -top-2.5 left-3 rounded bg-danger px-1.5 py-0.5 text-[9px] uppercase tracking-widest text-background">
+                            Flagged
+                          </span>
+                        </motion.div>
 
-                    <Row code="CPT 36415" label="Venipuncture, routine" amount="$28.00" />
-                    <Row code="HCPCS J1100" label="Dexamethasone 1mg" amount="$46.00" />
-                    <Row code="CPT 71046" label="Chest X-ray, 2 views" amount="$204.00" />
+                        <Row code="CPT 36415" label="Venipuncture, routine" amount="$28.00" />
+                        <Row code="HCPCS J1100" label="Dexamethasone 1mg" amount="$46.00" />
+                        <Row code="CPT 71046" label="Chest X-ray, 2 views" amount="$204.00" />
+                      </>
+                    )}
                   </div>
 
                   <div className="mt-4 flex items-center justify-between border-t border-border pt-3 text-foreground/80">
                     <span className="uppercase tracking-widest">Total billed</span>
-                    <span className="tabular-nums">$2,938.00</span>
+                    <span className="tabular-nums">
+                      ${totalBilled.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </span>
                   </div>
                 </div>
               </div>
@@ -112,23 +195,23 @@ export function DisputeModal({
               {/* Right: inspector */}
               <div className="flex min-h-0 flex-col p-5 lg:overflow-y-auto">
                 <div className="grid gap-3 sm:grid-cols-2">
-                  <Field label="Detected Issue" value="Upcoding / Code Unbundling" tone="danger" />
-                  <Field label="Recommended Code" value="CPT 99283 · $610.00" tone="cyan" />
+                  <Field label="Detected Issue" value={primaryIssue} tone="danger" />
+                  <Field label="Baseline / Comparison" value={primaryBaseline} tone="cyan" />
                 </div>
 
                 <div className="mt-4 rounded-xl border border-emerald/25 bg-emerald/[0.08] px-5 py-4">
                   <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
                     Estimated Savings
                   </p>
-                  <Counter target={1840} />
+                  <Counter target={dynamicSavings} />
                 </div>
 
                 <div className="mt-4 flex items-start gap-3 rounded-xl border border-border bg-surface px-4 py-3">
                   <ScrollText className="mt-0.5 size-4 shrink-0 text-cyan" />
                   <p className="text-xs leading-relaxed text-muted-foreground">
-                    <span className="text-foreground">CMS Interventional Coding Rules</span> —
-                    Modifier 59 Invalid. Bundled services may not be reported separately when
-                    performed in the same encounter.
+                    <span className="text-foreground">CMS Statutory & Coding Compliance</span> —
+                    Pursuant to CMS Physician Fee Schedule guidelines and NCCI edits, excessive markups
+                    and unbundled procedure codes require re-adjudication.
                   </p>
                 </div>
 
@@ -167,37 +250,15 @@ export function DisputeModal({
                       >
                         {tab === tabs[0] ? (
                           <ul className="space-y-2.5 text-xs leading-relaxed text-muted-foreground">
-                            {[
-                              "Encounter documentation supports moderate complexity MDM, not high severity with threat to life.",
-                              "No critical care time recorded; vitals remained within stable thresholds for the full visit.",
-                              "Modifier 59 appended to venipuncture despite same-session bundling under NCCI edits.",
-                              "Level downgrade 99285 → 99283 aligns with documented history, exam, and MDM.",
-                            ].map((line) => (
-                              <li key={line} className="flex gap-2.5">
+                            {reasoningBullets.map((line: string, idx: number) => (
+                              <li key={idx} className="flex gap-2.5">
                                 <Sparkles className="mt-0.5 size-3.5 shrink-0 text-cyan" />
                                 <span>{line}</span>
                               </li>
                             ))}
                           </ul>
                         ) : (
-                          <pre className="whitespace-pre-wrap font-mono text-[11px] leading-relaxed text-muted-foreground">
-                            {`RE: Claim ${claim.id} — Request for Corrected Adjudication
-
-To the Billing Department of ${claim.provider}:
-
-We have reviewed the itemized statement dated ${claim.date}.
-Line item CPT 99285 does not meet the documentation
-threshold defined by CMS for high-severity emergency
-services. Additionally, Modifier 59 has been applied to a
-bundled service in violation of NCCI edits.
-
-We request re-adjudication at CPT 99283 ($610.00) and
-removal of the improperly unbundled line, a net reduction
-of $1,840.00. Please confirm within 30 days.
-
-Respectfully,
-MedAudit — Autonomous Audit Agent`}
-                          </pre>
+                          <LegalLetterViewer markdown={disputeLetter} />
                         )}
                       </motion.div>
                     </AnimatePresence>

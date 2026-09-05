@@ -6,7 +6,8 @@ const API_BASE = "http://localhost:8000/api/v1";
 
 // Simple helper to grab the token (to be implemented with real Auth)
 function getAuthToken() {
-  return localStorage.getItem("medaudit_token") || "";
+  // Use a mock token by default in development so backend Auth passes
+  return localStorage.getItem("medaudit_token") || "mock-token-dev-user";
 }
 
 async function fetchWithAuth(url: string, options: RequestInit = {}) {
@@ -34,6 +35,7 @@ export type DocumentResponse = {
   id: string;
   filename: string;
   status: string;
+  savings?: number | null;
   created_at: string;
   updated_at: string;
 };
@@ -55,7 +57,7 @@ export const api = {
     return fetchWithAuth(`/documents/${id}`);
   },
 
-  getUploadPresignedUrl: (filename: string): Promise<{ presigned_url: string; document_id: string }> => {
+  getUploadPresignedUrl: (filename: string): Promise<{ upload_url: string; document_id: string; fields: Record<string, string>; is_mock?: boolean }> => {
     return fetchWithAuth("/presign", {
       method: "POST",
       body: JSON.stringify({ filename }),
@@ -68,16 +70,23 @@ export const api = {
     });
   },
 
-  uploadToS3: async (presignedUrl: string, file: File) => {
-    const response = await fetch(presignedUrl, {
-      method: "PUT",
-      body: file,
-      headers: {
-        "Content-Type": file.type,
-      },
+  // S3 presigned POST — sends a multipart/form-data body with the
+  // signed fields returned by the backend, then appends the file last.
+  uploadToS3: async (uploadUrl: string, file: File, fields: Record<string, string>) => {
+    const form = new FormData();
+    // S3 requires all policy fields before the file
+    for (const [key, value] of Object.entries(fields)) {
+      form.append(key, value);
+    }
+    form.append("file", file);
+
+    const response = await fetch(uploadUrl, {
+      method: "POST",
+      body: form,
     });
     if (!response.ok) {
-      throw new Error(`S3 Upload Error: ${response.statusText}`);
+      const text = await response.text().catch(() => response.statusText);
+      throw new Error(`S3 Upload Error: ${text || response.statusText}`);
     }
     return true;
   },

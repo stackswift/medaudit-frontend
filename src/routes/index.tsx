@@ -9,18 +9,32 @@ import { DisputeModal } from "@/components/medaudit/DisputeModal";
 import { type Claim } from "@/components/medaudit/data";
 import { api, type DocumentResponse, type DocumentDetailResponse } from "@/lib/api";
 
-const mapBackendToClaim = (doc: DocumentResponse): Claim => {
+const mapBackendToClaim = (doc: DocumentResponse | DocumentDetailResponse): Claim => {
   let status: Claim["status"] = "Auditing";
-  if (doc.status === "COMPLETED") status = "Action Required";
-  if (doc.status === "CLEAN") status = "Clean";
-  if (doc.status === "FAILED") status = "Action Required"; // Or handle failure appropriately
+  const s = (doc.status || "").toUpperCase();
+  if (s === "DISPUTED" || s === "COMPLETED" || s === "FAILED" || s === "ERROR") {
+    status = "Action Required";
+  } else if (s === "CLEARED" || s === "CLEAN") {
+    status = "Clean";
+  } else {
+    status = "Auditing";
+  }
+
+  let savings = doc.savings || 0;
+  if ("disputed_codes" in doc && Array.isArray(doc.disputed_codes) && doc.disputed_codes.length > 0) {
+    savings = doc.disputed_codes.reduce((acc, code) => {
+      const billed = Number(code.billed_amount || 0);
+      const baseline = Number(code.medicare_baseline || 0);
+      return acc + Math.max(0, billed - baseline);
+    }, 0);
+  }
 
   return {
     id: doc.id,
-    provider: doc.filename, // We use filename as a fallback until full details are loaded
-    facility: doc.status.replace("_", " "),
+    provider: doc.filename,
+    facility: s === "DISPUTED" ? "Dispute Ready" : doc.status.replace("_", " "),
     date: new Date(doc.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
-    savings: 0, // In a real app, savings would come from the dispute details
+    savings: Math.round(savings),
     status,
   };
 };
@@ -65,8 +79,11 @@ function Index() {
 
   const uploadMutation = useMutation({
     mutationFn: async (file: File) => {
-      const { presigned_url, document_id } = await api.getUploadPresignedUrl(file.name);
-      await api.uploadToS3(presigned_url, file);
+      const { upload_url, fields, document_id, is_mock } = await api.getUploadPresignedUrl(file.name);
+      // In dev/mock mode the backend has no real S3 bucket — skip the upload
+      if (!is_mock) {
+        await api.uploadToS3(upload_url, file, fields);
+      }
       await api.triggerProcessing(document_id);
       return document_id;
     },
@@ -127,6 +144,7 @@ function Index() {
 
       <DisputeModal
         claim={selectedClaim}
+        documentDetail={selectedDocument}
         onClose={() => setSelectedClaimId(null)}
         onAuthorize={handleAuthorize}
       />

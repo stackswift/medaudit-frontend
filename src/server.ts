@@ -25,6 +25,7 @@ async function normalizeCatastrophicSsrResponse(response: Response): Promise<Res
   const contentType = response.headers.get("content-type") ?? "";
   if (!contentType.includes("application/json")) return response;
 
+  if (typeof response.clone !== 'function') return response;
   const body = await response.clone().text();
   if (!isH3SwallowedErrorBody(body)) return response;
 

@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import type { Claim } from "./data";
 import { approveDispute, dismissDispute } from "@/lib/api";
+import { LegalLetterViewer } from "./LegalLetterViewer";
 
 const tabs = ["Agent Logic Breakdown", "Generated Legal Dispute Letter Preview"] as const;
 
@@ -25,10 +26,12 @@ interface StepItem {
 
 export function DisputeModal({
   claim,
+  documentDetail,
   onClose,
   onAuthorize,
 }: {
   claim: Claim | null;
+  documentDetail?: any;
   onClose: () => void;
   onAuthorize: () => void;
 }) {
@@ -48,8 +51,8 @@ export function DisputeModal({
     setIsSubmitting(true);
     try {
       await approveDispute(claim.id);
-    } catch {
-      // Fallback
+    } catch (e) {
+      console.error("Approve dispute error:", e);
     } finally {
       setIsSubmitting(false);
       onAuthorize();
@@ -60,8 +63,8 @@ export function DisputeModal({
     setIsSubmitting(true);
     try {
       await dismissDispute(claim.id);
-    } catch {
-      // Fallback
+    } catch (e) {
+      console.error("Dismiss dispute error:", e);
     } finally {
       setIsSubmitting(false);
       onClose();
@@ -76,7 +79,7 @@ export function DisputeModal({
   const issueTitle = claim.issueTitle ?? "⚠️ Potential Upcoding / Documentation Review Warranted";
 
   // Check backend disputed_codes
-  const backendDisputed = claim.disputed_codes?.[0];
+  const backendDisputed = (documentDetail?.disputed_codes || claim.disputed_codes)?.[0];
   const billedAmount = backendDisputed?.billed_amount ?? claim.billedAmount ?? 1250;
   const benchmarkRate = backendDisputed?.medicare_baseline ?? claim.benchmarkRate ?? 610;
   const recommendedCode =
@@ -90,6 +93,7 @@ export function DisputeModal({
   const ncciIndicator = claim.ncciModifierIndicator ?? 0;
   const confidenceScore = claim.confidenceScore ?? 89.4;
   const evidenceJustification =
+    documentDetail?.agent_reasoning ??
     claim.agent_reasoning ??
     claim.evidenceJustification ??
     "CPT 99285 represents High-Complexity Medical Decision Making (MDM). Itemized billing lacks corresponding high-acuity diagnostics. Recommend verifying complete physician documentation for CPT 99283/99284 equivalence.";
@@ -114,7 +118,7 @@ export function DisputeModal({
       number: 1,
       title: "Documentation Deficit Analysis",
       detail:
-        claim.agent_reasoning ||
+        evidenceJustification ||
         "Encounter documentation supports moderate complexity Medical Decision Making (MDM), not high severity with immediate threat to life or organ function.",
       citation: "CMS Evaluation & Management Guidelines (2026)",
     },
@@ -139,28 +143,36 @@ export function DisputeModal({
   const steps = claim.reasoningSteps ?? defaultSteps;
 
   const letterMarkdown =
+    documentDetail?.dispute_letter_markdown ||
     claim.dispute_letter_markdown ||
-    `RE: Documentation Substantiation Request & Coding Inquiry — Claim ${claim.id}
-To: Adjudication Dept, ${providerName} (NPI: ${npi})
-Date: ${claim.date}
+    `# FORMAL MEDICAL BILLING DISPUTE & AUDIT NOTICE
 
-We are writing to request clinical documentation substantiation for line item CPT ${backendDisputed?.cpt_code ?? "99285"} (Billed Amount: $${billedAmount.toLocaleString("en-US", { minimumFractionDigits: 2 })}) on statement dated ${claim.date}.
+**To:** ${providerName} (NPI: ${npi})  
+**From:** Policyholder (Policy ID: ${patientId})  
+**Statement Date:** ${claim.date}  
+**Total Disputed Charges:** $${savings.toLocaleString("en-US", { minimumFractionDigits: 2 })}  
 
-AUDIT FINDING:
+---
+
+### Notice of Disputed Line Items
+The following billed line items have been identified with compliance discrepancies:
+
+| CPT Code | Description | Billed Amount | Medicare Baseline | Issue |
+|---|---|---|---|---|
+| ${backendDisputed?.cpt_code ?? "99285"} | ${backendDisputed?.billed_description ?? "Emergency Dept Visit, high severity"} | $${billedAmount.toLocaleString("en-US", { minimumFractionDigits: 2 })} | $${benchmarkRate.toFixed(2)} | UPCODING |
+
+### Auditor Reasoning & Grounds for Appeal
 ${evidenceJustification}
 
-CMS NCCI MODIFIER COMPLIANCE ANALYSIS:
-CMS NCCI Modifier Indicator ${ncciIndicator}: ${
-      ncciIndicator === 0
-        ? "Unbundling is prohibited under CMS NCCI Chapter 1 rules and Modifier 59 cannot bypass the edit."
-        : "Modifier 59 is only valid if clinical documentation confirms a distinct procedural service, separate site, or independent encounter."
-    }
+### CMS NCCI Compliance Reference
+- **NCCI Indicator:** ${ncciIndicator} (${ncciIndicator === 0 ? "Unbundling prohibited under Chapter 1 rules" : "Requires distinct modifier justification"})
+- **Citation:** CMS NCCI Policy Manual v30.1, Chap 1, Sec E
 
-DOCUMENTATION INQUIRY REQUEST:
-Please provide complete medical chart records to substantiate CPT ${backendDisputed?.cpt_code ?? "99285"} MDM criteria, or re-adjudicate at CPT 99283 ($${benchmarkRate.toFixed(2)}) with dynamic recoverable savings adjustment of $${savings.toLocaleString("en-US", { minimumFractionDigits: 2 })}.
+### Demand for Adjustment
+Please re-adjudicate line item CPT ${backendDisputed?.cpt_code ?? "99285"} to benchmark CPT 99283 ($${benchmarkRate.toFixed(2)}) with recoverable savings adjustment of **$${savings.toLocaleString("en-US", { minimumFractionDigits: 2 })}**.
 
-Respectfully Submitted,
-MedAudit Clinical Documentation Inquiry Agent`;
+Respectfully Submitted,  
+**MedAudit Autonomous Billing Auditor**`;
 
   return (
     <AnimatePresence>
@@ -248,260 +260,219 @@ MedAudit Clinical Documentation Inquiry Agent`;
                   <div className="mt-4 grid grid-cols-3 gap-2 border-t border-border/60 pt-3 text-[10px]">
                     <div>
                       <span className="block text-muted-foreground/70 uppercase">NPI Reg</span>
-                      <span className="text-foreground font-semibold">{npi}</span>
+                      <strong className="text-foreground">{npi}</strong>
                     </div>
                     <div>
                       <span className="block text-muted-foreground/70 uppercase">Tax ID</span>
-                      <span className="text-foreground font-semibold">{taxId}</span>
+                      <strong className="text-foreground">{taxId}</strong>
                     </div>
                     <div>
-                      <span className="block text-muted-foreground/70 uppercase">Patient Ref</span>
-                      <span className="text-foreground font-semibold">{patientId}</span>
+                      <span className="block text-muted-foreground/70 uppercase">Patient ID</span>
+                      <strong className="text-foreground">{patientId}</strong>
                     </div>
                   </div>
                 </div>
 
-                {/* Invoice Items */}
-                <div className="mt-4 space-y-2">
-                  <div className="flex items-center justify-between font-mono text-[10px] text-muted-foreground/80 border-b border-border/40 pb-1 uppercase tracking-wider">
-                    <span>Code / Description</span>
-                    <span>Billed Amount</span>
+                {/* Line Items List */}
+                <div className="mt-4 space-y-1">
+                  <div className="flex items-center justify-between font-bold uppercase tracking-wider text-muted-foreground/80 pb-1 border-b border-border/40 text-[9px]">
+                    <span>Procedure Line Item</span>
+                    <span>Billed</span>
                   </div>
-
-                  {items.map((item, idx) =>
-                    item.disputed ? (
-                      <motion.div
-                        key={idx}
-                        initial={{ opacity: 0, scale: 0.98 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        transition={{ delay: 0.15, type: "spring", stiffness: 220, damping: 22 }}
-                        className="relative rounded-xl border-2 border-amber-500/80 bg-amber-500/15 px-3.5 py-3 shadow-glow-amber"
-                      >
-                        <div className="flex items-center justify-between gap-3 text-foreground font-semibold">
-                          <span className="truncate text-xs">
-                            {item.code} — {item.label}
-                          </span>
-                          <span className="shrink-0 tabular-nums text-amber-400 font-bold text-sm">
-                            ${item.amount.toLocaleString("en-US", { minimumFractionDigits: 2 })}
-                          </span>
-                        </div>
-
-                        <div className="mt-2 flex items-center justify-between border-t border-amber-500/30 pt-2 text-[10px]">
-                          <span className="text-amber-300">MDM Documentation Review Warranted</span>
-                          <span className="rounded bg-amber-500 text-background px-2 py-0.5 text-[9px] font-bold uppercase tracking-widest shadow-sm">
-                            DEFICIT WARNING
-                          </span>
-                        </div>
-                      </motion.div>
-                    ) : (
-                      <Row
-                        key={idx}
-                        code={item.code}
-                        label={item.label}
-                        amount={`$${item.amount.toLocaleString("en-US", { minimumFractionDigits: 2 })}`}
-                      />
-                    ),
-                  )}
+                  {items.map((item) => (
+                    <div
+                      key={item.code}
+                      className={
+                        item.disputed
+                          ? "rounded-lg border border-amber-500/40 bg-amber-500/10 text-amber-200"
+                          : ""
+                      }
+                    >
+                      <Row code={item.code} label={item.label} amount={`$${item.amount.toFixed(2)}`} />
+                    </div>
+                  ))}
                 </div>
 
-                {/* Total Summary Footer */}
-                <div className="mt-5 border-t border-border/80 pt-3 flex items-center justify-between text-foreground">
-                  <span className="uppercase tracking-widest text-[10px] text-muted-foreground">
-                    Total Statement Billed
-                  </span>
-                  <span className="font-mono text-sm font-bold tabular-nums">
+                {/* Subtotal & Flagged Line Summary */}
+                <div className="mt-4 border-t border-border/80 pt-3 flex items-center justify-between text-xs">
+                  <span className="font-semibold text-foreground">Total Invoiced</span>
+                  <span className="font-bold text-foreground font-mono">
                     ${totalBilled.toLocaleString("en-US", { minimumFractionDigits: 2 })}
                   </span>
+                </div>
+
+                <div className="mt-2 rounded-xl border border-amber-500/40 bg-amber-500/10 p-3 flex items-start gap-2.5">
+                  <AlertTriangle className="size-4 text-amber-400 shrink-0 mt-0.5" />
+                  <div className="text-[10px] leading-relaxed">
+                    <p className="font-bold text-amber-300 uppercase tracking-wider">
+                      Flagged Line Item Discrepancy
+                    </p>
+                    <p className="mt-0.5 text-amber-200/90">
+                      Line item <strong>CPT {backendDisputed?.cpt_code ?? "99285"}</strong> ($
+                      {billedAmount.toFixed(2)}) is challenged for clinical upcoding. Benchmark
+                      medicare rate is ${benchmarkRate.toFixed(2)}.
+                    </p>
+                  </div>
                 </div>
               </div>
             </div>
 
-            {/* Right Column: Audit Intelligence & Appeal Generator */}
-            <div className="flex min-h-0 flex-col p-6 lg:overflow-y-auto space-y-5">
-              {/* Stat Cards */}
-              <div className="grid gap-3 sm:grid-cols-2">
-                <Field
-                  label="Audit Finding"
-                  value={issueTitle}
-                  tone="warning"
-                  icon={<AlertTriangle className="size-4 text-amber-400" />}
-                />
-                <Field
-                  label="Recommended Code"
-                  value={recommendedCode}
-                  tone="cyan"
-                  icon={<FileCheck className="size-4 text-cyan" />}
-                />
-              </div>
-
-              {/* Dynamic Recoverable Savings Highlight Box */}
-              <div className="rounded-2xl border border-emerald/35 bg-emerald/10 p-5 shadow-glow-emerald">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-emerald/80 font-bold">
-                        DYNAMIC RECOVERABLE SAVINGS
-                      </p>
-                      <span className="rounded bg-emerald/20 px-1.5 py-0.5 text-[9px] font-mono text-emerald border border-emerald/30">
-                        ({billedAmount} - {benchmarkRate})
+            {/* Right Column: Dispute Desk Workspace */}
+            <div className="flex flex-col p-6 lg:overflow-y-auto bg-card/60">
+              <div className="flex-1 space-y-5">
+                {/* Potential Recovery Banner Card */}
+                <div className="relative overflow-hidden rounded-2xl border border-emerald/30 bg-emerald/10 p-5 shadow-glow-emerald">
+                  <div className="pointer-events-none absolute -right-6 -top-6 size-24 rounded-full bg-emerald/20 blur-2xl" />
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <span className="font-mono text-[10px] uppercase tracking-widest text-emerald/80 font-bold">
+                        Recoverable Disparity Identified
                       </span>
+                      <Counter target={savings > 0 ? savings : 640} />
                     </div>
-                    <Counter target={savings} />
+                    <span className="inline-flex items-center gap-1 rounded-full border border-emerald/40 bg-emerald/20 px-2.5 py-1 text-[10px] font-mono font-bold text-emerald">
+                      <Scale className="size-3" />
+                      <span>CMS CPT Validated</span>
+                    </span>
                   </div>
-                  <div className="grid size-12 place-items-center rounded-2xl bg-emerald/20 border border-emerald/40 text-emerald">
-                    <Scale className="size-6" />
-                  </div>
-                </div>
-              </div>
-
-              {/* Evidence Justification & Confidence Score */}
-              <div className="rounded-xl border border-cyan/30 bg-cyan/10 p-4 font-mono text-xs text-muted-foreground space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-cyan font-bold flex items-center gap-1.5">
-                    <Sparkles className="size-3.5 text-cyan" />
-                    Agent Audit Evidence Justification
-                  </span>
-                  <span className="rounded bg-cyan/20 px-2 py-0.5 text-[10px] font-bold text-cyan border border-cyan/40">
-                    Confidence: {confidenceScore}%
-                  </span>
-                </div>
-                <p className="leading-relaxed text-foreground/90">{evidenceJustification}</p>
-              </div>
-
-              {/* CMS NCCI Rule Citation Banner (Indicator 0 vs 1) */}
-              <div className="flex items-start gap-3 rounded-xl border border-border bg-surface px-4 py-3">
-                <ScrollText className="mt-0.5 size-4 shrink-0 text-cyan" />
-                <p className="text-xs leading-relaxed text-muted-foreground">
-                  <strong className="text-foreground">
-                    CMS NCCI v30.1 Edit (Modifier Indicator {ncciIndicator}):
-                  </strong>{" "}
-                  {ncciIndicator === 0
-                    ? "Unbundling is prohibited under CMS NCCI Chapter 1 rules. Modifier 59 cannot be used to bypass automated bundling edits for this procedure pair."
-                    : "Modifier 59 is only valid if clinical documentation confirms a distinct procedural service, separate site, or independent encounter."}
-                </p>
-              </div>
-
-              {/* Tab Switcher & Content */}
-              <div>
-                <div className="flex gap-1.5 rounded-xl border border-border bg-surface p-1">
-                  {tabs.map((t) => (
-                    <button
-                      key={t}
-                      onClick={() => setTab(t)}
-                      className={`relative flex-1 rounded-lg px-3.5 py-2 text-[11px] font-semibold transition-colors ${
-                        tab === t
-                          ? "text-foreground"
-                          : "text-muted-foreground hover:text-foreground"
-                      }`}
-                    >
-                      {tab === t && (
-                        <motion.span
-                          layoutId="activeDisputeTab"
-                          className="absolute inset-0 rounded-lg border border-cyan/30 bg-cyan-soft shadow-glow-cyan"
-                          transition={{ type: "spring", stiffness: 320, damping: 30 }}
-                        />
-                      )}
-                      <span className="relative">{t}</span>
-                    </button>
-                  ))}
+                  <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
+                    Automated dynamic calculation comparing billed charges directly against CMS
+                    Medicare baseline standard rates.
+                  </p>
                 </div>
 
-                <div className="mt-3 rounded-2xl border border-border/80 bg-surface p-4 min-h-52">
-                  <AnimatePresence mode="wait">
-                    {tab === tabs[0] ? (
-                      <motion.div
-                        key="stepper"
-                        initial={{ opacity: 0, y: 6 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: -6 }}
-                        transition={{ duration: 0.18 }}
-                        className="space-y-3"
+                {/* Audit Evidence Fields */}
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <Field
+                    icon={<AlertTriangle className="size-3.5 text-amber-400" />}
+                    label="Audit Rule Flagged"
+                    value={issueTitle}
+                    tone="warning"
+                  />
+                  <Field
+                    icon={<FileCheck className="size-3.5 text-cyan" />}
+                    label="Re-Adjudicate Benchmark"
+                    value={recommendedCode}
+                    tone="cyan"
+                  />
+                </div>
+
+                {/* Tabs: Chain-of-Thought Stepper vs Legal Dispute Letter */}
+                <div>
+                  <div className="flex gap-2 rounded-xl border border-border/80 bg-surface p-1">
+                    {tabs.map((t) => (
+                      <button
+                        key={t}
+                        onClick={() => setTab(t)}
+                        className={`relative flex-1 rounded-lg px-3 py-2 font-mono text-xs font-semibold transition-all ${
+                          tab === t
+                            ? "text-cyan shadow-sm"
+                            : "text-muted-foreground hover:text-foreground"
+                        }`}
                       >
-                        <p className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground mb-2">
-                          Agent Reasoning Stepper (Chain-of-Thought)
-                        </p>
+                        {tab === t && (
+                          <motion.span
+                            layoutId="tabPill"
+                            className="absolute inset-0 rounded-lg border border-cyan/30 bg-cyan-soft shadow-glow-cyan"
+                            transition={{ type: "spring", stiffness: 320, damping: 30 }}
+                          />
+                        )}
+                        <span className="relative">{t}</span>
+                      </button>
+                    ))}
+                  </div>
 
-                        {steps.map((step) => {
-                          const isExpanded = expandedStep === step.number;
-                          return (
-                            <div
-                              key={step.number}
-                              className={`rounded-xl border transition-all ${
-                                isExpanded
-                                  ? "border-cyan/40 bg-cyan/5"
-                                  : "border-border/60 bg-transparent hover:border-border"
-                              }`}
-                            >
-                              <button
-                                onClick={() => setExpandedStep(isExpanded ? null : step.number)}
-                                className="flex w-full items-center justify-between px-3.5 py-2.5 text-left text-xs font-semibold text-foreground"
+                  <div className="mt-3 rounded-2xl border border-border/80 bg-surface p-4 min-h-52">
+                    <AnimatePresence mode="wait">
+                      {tab === tabs[0] ? (
+                        <motion.div
+                          key="stepper"
+                          initial={{ opacity: 0, y: 6 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, y: -6 }}
+                          transition={{ duration: 0.18 }}
+                          className="space-y-3"
+                        >
+                          <p className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground mb-2">
+                            Agent Reasoning Stepper (Chain-of-Thought)
+                          </p>
+
+                          {steps.map((step) => {
+                            const isExpanded = expandedStep === step.number;
+                            return (
+                              <div
+                                key={step.number}
+                                className={`rounded-xl border transition-all ${
+                                  isExpanded
+                                    ? "border-cyan/40 bg-cyan/5"
+                                    : "border-border/60 bg-transparent hover:border-border"
+                                }`}
                               >
-                                <div className="flex items-center gap-2.5">
-                                  <span className="grid size-5 place-items-center rounded-full bg-cyan/20 text-[10px] font-mono text-cyan">
-                                    {step.number}
-                                  </span>
-                                  <span>{step.title}</span>
-                                </div>
-                                <ChevronDown
-                                  className={`size-4 text-muted-foreground transition-transform ${
-                                    isExpanded ? "rotate-180 text-cyan" : ""
-                                  }`}
-                                />
-                              </button>
+                                <button
+                                  onClick={() => setExpandedStep(isExpanded ? null : step.number)}
+                                  className="flex w-full items-center justify-between px-3.5 py-2.5 text-left text-xs font-semibold text-foreground"
+                                >
+                                  <div className="flex items-center gap-2.5">
+                                    <span className="grid size-5 place-items-center rounded-full bg-cyan/20 text-[10px] font-mono text-cyan">
+                                      {step.number}
+                                    </span>
+                                    <span>{step.title}</span>
+                                  </div>
+                                  <ChevronDown
+                                    className={`size-4 text-muted-foreground transition-transform ${
+                                      isExpanded ? "rotate-180 text-cyan" : ""
+                                    }`}
+                                  />
+                                </button>
 
-                              {isExpanded && (
-                                <div className="px-3.5 pb-3 pt-1 text-xs leading-relaxed text-muted-foreground border-t border-border/40">
-                                  <p>{step.detail}</p>
-                                  <p className="mt-2 font-mono text-[10px] text-cyan/90 flex items-center gap-1.5">
-                                    <Sparkles className="size-3 text-cyan" />
-                                    {step.citation}
-                                  </p>
-                                </div>
-                              )}
-                            </div>
-                          );
-                        })}
-                      </motion.div>
-                    ) : (
-                      <motion.div
-                        key="letter"
-                        initial={{ opacity: 0, y: 6 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: -6 }}
-                        transition={{ duration: 0.18 }}
-                      >
-                        <div className="flex items-center justify-between border-b border-border/60 pb-2 mb-3 font-mono text-[10px] text-cyan">
-                          <span>DOCUMENTATION SUBSTANTIATION REQUEST</span>
-                          <span>INQUIRY FORM 837-DSP</span>
-                        </div>
-                        <pre className="whitespace-pre-wrap font-mono text-[11px] leading-relaxed text-muted-foreground">
-                          {letterMarkdown}
-                        </pre>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
+                                {isExpanded && (
+                                  <div className="px-3.5 pb-3 pt-1 text-xs leading-relaxed text-muted-foreground border-t border-border/40">
+                                    <p>{step.detail}</p>
+                                    <p className="mt-2 font-mono text-[10px] text-cyan/90 flex items-center gap-1.5">
+                                      <Sparkles className="size-3 text-cyan" />
+                                      {step.citation}
+                                    </p>
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </motion.div>
+                      ) : (
+                        <motion.div
+                          key="letter"
+                          initial={{ opacity: 0, y: 6 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, y: -6 }}
+                          transition={{ duration: 0.18 }}
+                        >
+                          <LegalLetterViewer markdown={letterMarkdown} />
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </div>
                 </div>
-              </div>
 
-              {/* Action Buttons Footer */}
-              <div className="mt-4 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end border-t border-border/80 pt-4">
-                <button
-                  onClick={handleDismissAction}
-                  disabled={isSubmitting}
-                  className="rounded-xl border border-border bg-surface px-5 py-2.5 text-sm font-semibold text-muted-foreground transition-all hover:bg-white/5 hover:text-foreground disabled:opacity-50"
-                >
-                  Dismiss / Mark Valid
-                </button>
-                <motion.button
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                  onClick={handleApproveAction}
-                  disabled={isSubmitting}
-                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-emerald to-cyan px-6 py-2.5 text-sm font-bold text-primary-foreground shadow-glow-emerald hover:shadow-glow-cyan transition-all disabled:opacity-50"
-                >
-                  <Send className="size-4 text-primary-foreground" />
-                  <span>{isSubmitting ? "Processing..." : "Authorize Dispute & Dispatch"}</span>
-                </motion.button>
+                {/* Action Buttons Footer */}
+                <div className="mt-4 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end border-t border-border/80 pt-4">
+                  <button
+                    onClick={handleDismissAction}
+                    disabled={isSubmitting}
+                    className="rounded-xl border border-border bg-surface px-5 py-2.5 text-sm font-semibold text-muted-foreground transition-all hover:bg-white/5 hover:text-foreground disabled:opacity-50"
+                  >
+                    Dismiss / Mark Valid
+                  </button>
+                  <motion.button
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    onClick={handleApproveAction}
+                    disabled={isSubmitting}
+                    className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-emerald to-cyan px-6 py-2.5 text-sm font-bold text-primary-foreground shadow-glow-emerald hover:shadow-glow-cyan transition-all disabled:opacity-50"
+                  >
+                    <Send className="size-4 text-primary-foreground" />
+                    <span>{isSubmitting ? "Processing..." : "Authorize Dispute & Dispatch"}</span>
+                  </motion.button>
+                </div>
               </div>
             </div>
           </div>

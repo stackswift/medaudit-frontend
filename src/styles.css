@@ -122,3 +122,36 @@
   background-clip: text;
   color: transparent;
 }
+
+@utility ambient-light {
+  background-image:
+    radial-gradient(ellipse 80% 50% at 10% 0%, oklch(0.78 0.13 205 / 0.10), transparent),
+    radial-gradient(ellipse 60% 40% at 90% 5%, oklch(0.60 0.14 280 / 0.08), transparent),
+    radial-gradient(ellipse 50% 60% at 50% 100%, oklch(0.79 0.17 163 / 0.05), transparent);
+}
+
+@utility paper-texture {
+  background-color: oklch(0.96 0.004 250);
+  background-image:
+    repeating-linear-gradient(0deg, transparent, transparent 23px, oklch(0.88 0.008 250) 23px, oklch(0.88 0.008 250) 24px),
+    repeating-linear-gradient(90deg, transparent, transparent 100%, oklch(0.90 0.006 250 / 0.3) 100%);
+}
+
+@utility shadow-glow-emerald {
+  box-shadow: 0 0 0 1px oklch(0.79 0.17 163 / 0.3), 0 8px 32px -8px oklch(0.79 0.17 163 / 0.45);
+}
+
+@keyframes scanline-sweep {
+  0% { transform: translateY(-100%); }
+  100% { transform: translateY(calc(100% + 100vh)); }
+}
+
+@keyframes pulse-badge {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}

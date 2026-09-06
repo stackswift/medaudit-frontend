@@ -1,4 +1,9 @@
-export type ClaimStatus = "Auditing" | "Clean" | "Action Required";
+export type ClaimStatus =
+  | "Parsing"
+  | "Cross-referencing"
+  | "Auditing"
+  | "Clean"
+  | "Action Required";
 
 export type Claim = {
   id: string;
@@ -7,6 +12,8 @@ export type Claim = {
   date: string;
   savings: number;
   status: ClaimStatus;
+  fileName?: string;
+  fileSize?: number;
 };
 
 export const claims: Claim[] = [
@@ -62,3 +69,21 @@ export const claims: Claim[] = [
 
 export const currency = (n: number) =>
   n.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
+
+export function generateClaimId(): string {
+  return `CLM-${Math.floor(10000 + Math.random() * 90000)}`;
+}
+
+export function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+export function todayFormatted(): string {
+  return new Date().toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+}

@@ -8,6 +8,10 @@ export default defineConfig({
   resolve: {
     tsconfigPaths: true,
   },
+  build: {
+    outDir: "dist/client",
+    emptyOutDir: true,
+  },
   plugins: [
     tailwindcss(),
     TanStackRouterVite({ target: "react", autoCodeSplitting: true }),

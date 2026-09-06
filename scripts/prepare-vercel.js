@@ -19,7 +19,6 @@ console.log("Found asset files:", { cssFile, indexJsFile, routesJsFile });
 
 const cssLink = cssFile ? `<link rel="stylesheet" href="/assets/${cssFile}" />` : "";
 const indexScript = indexJsFile ? `<script type="module" src="/assets/${indexJsFile}"></script>` : "";
-const routesScript = routesJsFile ? `<script type="module" src="/assets/${routesJsFile}"></script>` : "";
 
 const htmlContent = `<!DOCTYPE html>
 <html lang="en" class="dark">
@@ -35,7 +34,6 @@ const htmlContent = `<!DOCTYPE html>
   </head>
   <body class="bg-[#05070a] text-foreground font-sans antialiased">
     <div id="root"></div>
-    ${routesScript}
     ${indexScript}
   </body>
 </html>

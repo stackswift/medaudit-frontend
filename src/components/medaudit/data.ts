@@ -7,7 +7,8 @@ export type ClaimStatus =
   | "Parsing"
   | "Cross-Referencing"
   | "Action Required"
-  | "Clean";
+  | "Clean"
+  | "Auditing";
 
 export interface DisputedCodeItem {
   cpt_code: string;

@@ -47,7 +47,7 @@ interface TableData {
 }
 
 function parseTable(lines: string[]): TableData | null {
-  if (lines.length < 2) return null;
+  if (lines.length < 2 || !lines[0]) return null;
   const cleanCells = (line: string) =>
     line
       .trim()
@@ -60,8 +60,9 @@ function parseTable(lines: string[]): TableData | null {
   const rows: string[][] = [];
 
   for (let i = 2; i < lines.length; i++) {
-    if (!lines[i].trim().startsWith("|")) continue;
-    rows.push(cleanCells(lines[i]));
+    const l = lines[i];
+    if (!l || !l.trim().startsWith("|")) continue;
+    rows.push(cleanCells(l));
   }
 
   return { headers, rows };
@@ -83,7 +84,12 @@ export function LegalLetterViewer({ markdown }: LegalLetterViewerProps) {
   let i = 0;
 
   while (i < rawLines.length) {
-    const line = rawLines[i].trim();
+    const rawLine = rawLines[i];
+    if (rawLine === undefined) {
+      i++;
+      continue;
+    }
+    const line = rawLine.trim();
 
     // Empty line
     if (!line) {
@@ -133,8 +139,9 @@ export function LegalLetterViewer({ markdown }: LegalLetterViewerProps) {
     // Markdown Table
     if (line.startsWith("|")) {
       const tableLines: string[] = [];
-      while (i < rawLines.length && rawLines[i].trim().startsWith("|")) {
-        tableLines.push(rawLines[i]);
+      while (i < rawLines.length && rawLines[i]?.trim().startsWith("|")) {
+        const item = rawLines[i];
+        if (item) tableLines.push(item);
         i++;
       }
       const tableData = parseTable(tableLines);
@@ -197,10 +204,11 @@ export function LegalLetterViewer({ markdown }: LegalLetterViewerProps) {
       const metaLines: string[] = [];
       while (
         i < rawLines.length &&
-        rawLines[i].trim().startsWith("**") &&
-        rawLines[i].includes(":**")
+        rawLines[i]?.trim().startsWith("**") &&
+        rawLines[i]?.includes(":**")
       ) {
-        metaLines.push(rawLines[i].trim());
+        const item = rawLines[i];
+        if (item) metaLines.push(item.trim());
         i++;
       }
 
@@ -211,7 +219,7 @@ export function LegalLetterViewer({ markdown }: LegalLetterViewerProps) {
         >
           {metaLines.map((ml, mIdx) => {
             const parts = ml.split(":**");
-            const label = parts[0].replace(/^\*\*/, "");
+            const label = (parts[0] ?? "").replace(/^\*\*/, "");
             const val = parts.slice(1).join(":**").trim();
             return (
               <div key={mIdx} className="text-xs">
@@ -231,8 +239,9 @@ export function LegalLetterViewer({ markdown }: LegalLetterViewerProps) {
     if (/^(\*|-|\d+\.)\s+/.test(line)) {
       const listItems: string[] = [];
       const isOrdered = /^\d+\.\s+/.test(line);
-      while (i < rawLines.length && /^(\*|-|\d+\.)\s+/.test(rawLines[i].trim())) {
-        listItems.push(rawLines[i].trim().replace(/^(\*|-|\d+\.)\s+/, ""));
+      while (i < rawLines.length && /^(\*|-|\d+\.)\s+/.test(rawLines[i]?.trim() ?? "")) {
+        const item = rawLines[i];
+        if (item) listItems.push(item.trim().replace(/^(\*|-|\d+\.)\s+/, ""));
         i++;
       }
 

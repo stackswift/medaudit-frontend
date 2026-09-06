@@ -44,6 +44,11 @@ function StatusBadge({ status }: { status: ClaimStatus }) {
       icon: <CircleCheck className="size-3 text-emerald" />,
       label: "CLEAN",
     },
+    Auditing: {
+      cls: "border-cyan/40 bg-cyan/15 text-cyan animate-pulse",
+      icon: <Loader2 className="size-3 animate-spin text-cyan" />,
+      label: "AUDITING",
+    },
     ERROR: {
       cls: "border-danger/50 bg-danger/15 text-danger shadow-glow-danger",
       icon: <TriangleAlert className="size-3 text-danger" />,

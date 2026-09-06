@@ -8,7 +8,7 @@ import type {
 
 // In Vite/Vercel, configure VITE_API_URL (e.g. https://api.yourdomain.com)
 const rawApiUrl =
-  (typeof import.meta !== "undefined" && import.meta.env && import.meta.env.VITE_API_URL) ||
+  (typeof import.meta !== "undefined" && import.meta.env && import.meta.env["VITE_API_URL"]) ||
   "http://localhost:8000";
 
 export const API_BASE = rawApiUrl.endsWith("/api/v1") ? rawApiUrl : `${rawApiUrl}/api/v1`;

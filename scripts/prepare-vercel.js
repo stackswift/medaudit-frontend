@@ -11,14 +11,13 @@ if (!fs.existsSync(assetsDir)) {
 
 const files = fs.readdirSync(assetsDir);
 
-const cssFile = files.find((f) => f.startsWith("styles-") && f.endsWith(".css"));
-const indexJsFile = files.find((f) => f.startsWith("index-") && f.endsWith(".js"));
-const routesJsFile = files.find((f) => f.startsWith("routes-") && f.endsWith(".js"));
+const cssFile = files.find((f) => f.startsWith("styles-") && f.endsWith(".css")) || files.find((f) => f.endsWith(".css"));
+const indexJsFile = files.find((f) => f.startsWith("index-") && f.endsWith(".js")) || files.find((f) => f.endsWith(".js"));
 
-console.log("Found asset files:", { cssFile, indexJsFile, routesJsFile });
+console.log("Found asset files:", { cssFile, indexJsFile });
 
-const cssLink = cssFile ? `<link rel="stylesheet" href="/assets/${cssFile}" />` : "";
-const indexScript = indexJsFile ? `<script type="module" src="/assets/${indexJsFile}"></script>` : "";
+const cssLink = cssFile ? `<link rel="stylesheet" href="./assets/${cssFile}">` : "";
+const indexScript = indexJsFile ? `<script type="module" src="./assets/${indexJsFile}"></script>` : "";
 
 const htmlContent = `<!DOCTYPE html>
 <html lang="en" class="dark">
@@ -32,7 +31,7 @@ const htmlContent = `<!DOCTYPE html>
     <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet" />
     ${cssLink}
   </head>
-  <body class="bg-[#05070a] text-foreground font-sans antialiased">
+  <body class="bg-[#05070a] text-white antialiased">
     <div id="root"></div>
     ${indexScript}
   </body>
@@ -40,4 +39,4 @@ const htmlContent = `<!DOCTYPE html>
 `;
 
 fs.writeFileSync(path.join(clientDir, "index.html"), htmlContent, "utf-8");
-console.log("Successfully generated dist/client/index.html for Vercel deployment.");
+console.log("Successfully generated dist/client/index.html with relative asset paths for Vercel deployment.");

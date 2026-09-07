@@ -183,6 +183,23 @@ function RouteComponent() {
     },
   });
 
+  const deleteMutation = useMutation({
+    mutationFn: async (claimId: string) => {
+      return await api.deleteDocument(claimId);
+    },
+    onSuccess: () => {
+      toast.success("Document deleted", {
+        description: "The bill has been removed from your audit feed.",
+      });
+      queryClient.invalidateQueries({ queryKey: ["documents"] });
+    },
+    onError: (err) => {
+      toast.error("Failed to delete document", {
+        description: (err as Error).message,
+      });
+    },
+  });
+
   const handleAuthorize = () => {
     if (!selectedClaimId) return;
     authorizeMutation.mutate(selectedClaimId);
@@ -191,6 +208,10 @@ function RouteComponent() {
   const handleDismiss = () => {
     if (!selectedClaimId) return;
     dismissMutation.mutate(selectedClaimId);
+  };
+
+  const handleDelete = (claimId: string) => {
+    deleteMutation.mutate(claimId);
   };
 
   const selectedClaim = selectedDocument
@@ -224,7 +245,11 @@ function RouteComponent() {
               Loading audited claims...
             </div>
           ) : (
-            <ClaimsFeed claims={claims} onSelect={(c) => setSelectedClaimId(c.id)} />
+            <ClaimsFeed 
+              claims={claims} 
+              onSelect={(c) => setSelectedClaimId(c.id)} 
+              onDelete={handleDelete}
+            />
           )}
         </div>
       </main>

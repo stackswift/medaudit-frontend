@@ -167,6 +167,15 @@ export async function dismissDispute(disputeId: string): Promise<DisputeActionRe
   });
 }
 
+/**
+ * 8. Delete document
+ */
+export async function deleteDocument(documentId: string): Promise<void> {
+  return fetchWithAuth<void>(`/documents/${documentId}`, {
+    method: "DELETE",
+  });
+}
+
 export const api = {
   getDocuments,
   getDocumentDetail,
@@ -174,5 +183,6 @@ export const api = {
   triggerProcessing: triggerDocumentProcess,
   approveDispute,
   dismissDispute,
+  deleteDocument,
   uploadToS3,
 };

@@ -1,5 +1,5 @@
 import { motion } from "motion/react";
-import { ChevronRight, CircleCheck, Cpu, Loader2, Sparkles, TriangleAlert } from "lucide-react";
+import { ChevronRight, CircleCheck, Cpu, Loader2, Sparkles, TriangleAlert, Trash2 } from "lucide-react";
 import { currency, type Claim, type ClaimStatus } from "./data";
 
 function StatusBadge({ status }: { status: ClaimStatus }) {
@@ -69,9 +69,11 @@ function StatusBadge({ status }: { status: ClaimStatus }) {
 export function ClaimsFeed({
   claims,
   onSelect,
+  onDelete,
 }: {
   claims: Claim[];
   onSelect: (claim: Claim) => void;
+  onDelete?: (claimId: string) => void;
 }) {
   return (
     <section className="relative overflow-hidden rounded-2xl border border-border bg-card/60 backdrop-blur-2xl shadow-panel">
@@ -114,9 +116,8 @@ export function ClaimsFeed({
               animate={{ opacity: 1, y: 0 }}
               transition={{ type: "spring", stiffness: 200, damping: 26, delay: 0.04 * i }}
             >
-              <button
+              <div
                 onClick={() => actionable && onSelect(claim)}
-                disabled={!actionable}
                 className={`group grid w-full grid-cols-[1fr_auto] items-center gap-3 px-6 py-4 text-left transition-all ${
                   actionable
                     ? "cursor-pointer hover:bg-white/[0.05]"
@@ -154,15 +155,30 @@ export function ClaimsFeed({
                 {/* Status Pill & Arrow */}
                 <span className="flex items-center justify-end gap-2.5 sm:w-48">
                   <StatusBadge status={claim.status} />
-                  <ChevronRight
-                    className={`size-4 shrink-0 transition-transform ${
-                      actionable
-                        ? "text-muted-foreground group-hover:translate-x-1 group-hover:text-cyan"
-                        : "text-transparent"
-                    }`}
-                  />
+                  
+                  {/* Delete button for terminal states (Clean, ERROR) */}
+                  {(claim.status === "Clean" || claim.status === "ERROR") && onDelete ? (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onDelete(claim.id);
+                      }}
+                      className="ml-2 rounded-md p-1.5 text-muted-foreground/50 hover:bg-danger/10 hover:text-danger transition-colors"
+                      title="Delete document"
+                    >
+                      <Trash2 className="size-4" />
+                    </button>
+                  ) : (
+                    <ChevronRight
+                      className={`size-4 shrink-0 transition-transform ${
+                        actionable
+                          ? "text-muted-foreground group-hover:translate-x-1 group-hover:text-cyan"
+                          : "text-transparent"
+                      }`}
+                    />
+                  )}
                 </span>
-              </button>
+              </div>
             </motion.li>
           );
         })}

@@ -14,7 +14,7 @@ function mapBackendToClaim(doc: any): Claim {
   let status: ClaimStatus = "Auditing";
   if (s === "DISPUTED" || s === "COMPLETED" || s === "FAILED" || s === "ERROR" || s === "ACTION REQUIRED") {
     status = "Action Required";
-  } else if (s === "CLEARED" || s === "CLEAN") {
+  } else if (s === "CLEARED" || s === "CLEAN" || s === "APPROVED") {
     status = "Clean";
   } else {
     status = "Auditing";
@@ -29,10 +29,19 @@ function mapBackendToClaim(doc: any): Claim {
     }, 0);
   }
 
+  const facilityLabel =
+    s === "APPROVED"
+      ? "Appeal Dispatched"
+      : s === "DISPUTED"
+      ? "Dispute Ready"
+      : s === "CLEARED"
+      ? "Cleared"
+      : String(doc.status || "").replace("_", " ");
+
   return {
     id: doc.id,
     provider: doc.filename,
-    facility: s === "DISPUTED" ? "Dispute Ready" : String(doc.status || "").replace("_", " "),
+    facility: facilityLabel,
     date: new Date(doc.created_at || Date.now()).toLocaleDateString("en-US", {
       month: "short",
       day: "numeric",
@@ -138,9 +147,32 @@ function RouteComponent() {
     },
   });
 
+  const dismissMutation = useMutation({
+    mutationFn: async (claimId: string) => {
+      return await api.dismissDispute(claimId);
+    },
+    onSuccess: () => {
+      toast.success("Dispute dismissed", {
+        description: "Bill marked as reviewed and cleared.",
+      });
+      queryClient.invalidateQueries({ queryKey: ["documents"] });
+      setSelectedClaimId(null);
+    },
+    onError: (err) => {
+      toast.error("Failed to dismiss dispute", {
+        description: (err as Error).message,
+      });
+    },
+  });
+
   const handleAuthorize = () => {
     if (!selectedClaimId) return;
     authorizeMutation.mutate(selectedClaimId);
+  };
+
+  const handleDismiss = () => {
+    if (!selectedClaimId) return;
+    dismissMutation.mutate(selectedClaimId);
   };
 
   const selectedClaim = selectedDocument
@@ -183,6 +215,7 @@ function RouteComponent() {
         claim={selectedClaim}
         onClose={() => setSelectedClaimId(null)}
         onAuthorize={handleAuthorize}
+        onDismiss={handleDismiss}
       />
     </div>
   );

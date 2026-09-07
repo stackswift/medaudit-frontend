@@ -29,11 +29,13 @@ export function DisputeModal({
   documentDetail,
   onClose,
   onAuthorize,
+  onDismiss,
 }: {
   claim: Claim | null;
   documentDetail?: any;
   onClose: () => void;
   onAuthorize: () => void;
+  onDismiss?: () => void;
 }) {
   const [tab, setTab] = useState<(typeof tabs)[number]>(tabs[0]);
   const [expandedStep, setExpandedStep] = useState<number | null>(1);
@@ -51,14 +53,10 @@ export function DisputeModal({
     onAuthorize();
   };
 
-  const handleDismissAction = async () => {
-    setIsSubmitting(true);
-    try {
-      await dismissDispute(claim.id);
-    } catch (e) {
-      console.error("Dismiss dispute error:", e);
-    } finally {
-      setIsSubmitting(false);
+  const handleDismissAction = () => {
+    if (onDismiss) {
+      onDismiss();
+    } else {
       onClose();
     }
   };

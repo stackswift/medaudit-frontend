@@ -104,7 +104,9 @@ export function ClaimsFeed({
       {/* Claims List */}
       <ul className="relative divide-y divide-border/60">
         {claims.map((claim, i) => {
-          const actionable = claim.status === "Action Required" || claim.status === "DISPUTED";
+          const actionable =
+            (claim.status === "Action Required" || claim.status === "DISPUTED") &&
+            claim.status !== "ERROR";
           return (
             <motion.li
               key={claim.id}

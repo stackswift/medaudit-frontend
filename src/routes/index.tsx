@@ -12,10 +12,14 @@ import type { Claim, ClaimStatus } from "@/components/medaudit/data";
 function mapBackendToClaim(doc: any): Claim {
   const s = String(doc.status || "").toUpperCase();
   let status: ClaimStatus = "Auditing";
-  if (s === "DISPUTED" || s === "COMPLETED" || s === "FAILED" || s === "ERROR" || s === "ACTION REQUIRED") {
+  if (s === "DISPUTED" || s === "COMPLETED" || s === "ACTION REQUIRED") {
+    // Only DISPUTED docs have a Dispute record and can be actioned
     status = "Action Required";
   } else if (s === "CLEARED" || s === "CLEAN" || s === "APPROVED") {
     status = "Clean";
+  } else if (s === "ERROR" || s === "FAILED") {
+    // ERROR = pipeline failed (no Dispute row exists), show as non-clickable ERROR badge
+    status = "ERROR";
   } else {
     status = "Auditing";
   }
@@ -141,9 +145,15 @@ function RouteComponent() {
       setSelectedClaimId(null);
     },
     onError: (err) => {
-      toast.error("Failed to dispatch dispute", {
-        description: (err as Error).message,
-      });
+      const msg = (err as Error).message;
+      if (msg.includes("404") || msg.includes("not found")) {
+        toast.info("No dispute to dispatch", {
+          description: "This bill has no active audit dispute record.",
+        });
+        setSelectedClaimId(null);
+      } else {
+        toast.error("Failed to dispatch dispute", { description: msg });
+      }
     },
   });
 
@@ -159,9 +169,17 @@ function RouteComponent() {
       setSelectedClaimId(null);
     },
     onError: (err) => {
-      toast.error("Failed to dismiss dispute", {
-        description: (err as Error).message,
-      });
+      const msg = (err as Error).message;
+      if (msg.includes("404") || msg.includes("not found")) {
+        // No dispute row (pipeline failed) — just close the modal gracefully
+        toast.info("No dispute to dismiss", {
+          description: "This bill has no active audit dispute record.",
+        });
+        queryClient.invalidateQueries({ queryKey: ["documents"] });
+        setSelectedClaimId(null);
+      } else {
+        toast.error("Failed to dismiss dispute", { description: msg });
+      }
     },
   });
 

@@ -47,16 +47,8 @@ export function DisputeModal({
 
   if (!claim) return null;
 
-  const handleApproveAction = async () => {
-    setIsSubmitting(true);
-    try {
-      await approveDispute(claim.id);
-    } catch (e) {
-      console.error("Approve dispute error:", e);
-    } finally {
-      setIsSubmitting(false);
-      onAuthorize();
-    }
+  const handleApproveAction = () => {
+    onAuthorize();
   };
 
   const handleDismissAction = async () => {

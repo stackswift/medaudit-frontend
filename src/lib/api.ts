@@ -41,6 +41,11 @@ export async function fetchWithAuth<T = any>(endpoint: string, options: RequestI
     throw new Error(`API Error [${response.status}]: ${errorText || response.statusText}`);
   }
 
+  // Handle 204 No Content
+  if (response.status === 204) {
+    return {} as T;
+  }
+
   return response.json();
 }
 
